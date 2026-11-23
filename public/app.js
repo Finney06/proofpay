@@ -423,6 +423,8 @@ function openDialog() {
   $("budgetUsd").value = "5";
   $("corridorCode").value = "cNGN";
   $("form-error").hidden = true;
+  fieldMessage($("freelancerWallet"), "");
+  fieldMessage($("budgetUsd"), "");
   setDialogMode(false);
   updateEstimate();
   dialog.showModal();
@@ -449,6 +451,48 @@ function fillExample() {
   $("freelancerWallet").focus();
 }
 
+function fieldMessage(input, message) {
+  let el = input.parentElement.querySelector(".field-error");
+  if (!message) {
+    input.removeAttribute("aria-invalid");
+    if (el) el.remove();
+    return true;
+  }
+  if (!el) {
+    el = document.createElement("span");
+    el.className = "field-error";
+    el.setAttribute("role", "alert");
+    input.insertAdjacentElement("afterend", el);
+  }
+  input.setAttribute("aria-invalid", "true");
+  el.textContent = message;
+  return false;
+}
+
+function validateWallet(force) {
+  const input = $("freelancerWallet");
+  const v = input.value.trim();
+  if (!v && !force) return fieldMessage(input, "");
+  if (!v) return fieldMessage(input, "Paste the freelancer's wallet address.");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(v)) {
+    return fieldMessage(input, "That doesn't look like a Celo address. It starts with 0x and has 42 characters.");
+  }
+  const agent = state.health?.agentWallet;
+  if (agent && v.toLowerCase() === agent.toLowerCase()) {
+    return fieldMessage(input, "That's ProofPay's own wallet. Use the freelancer's address.");
+  }
+  return fieldMessage(input, "");
+}
+
+function validateBudget(force) {
+  const input = $("budgetUsd");
+  const v = Number(input.value);
+  if (!input.value && !force) return fieldMessage(input, "");
+  if (!Number.isFinite(v) || v < 1) return fieldMessage(input, "The smallest payout is $1.");
+  if (v > 5000) return fieldMessage(input, "The largest payout is $5,000.");
+  return fieldMessage(input, "");
+}
+
 async function submitPayout(e) {
   e.preventDefault();
   const form = $("payout-form");
@@ -462,6 +506,8 @@ async function submitPayout(e) {
     missing.focus();
     return;
   }
+
+  if (!validateWallet(true) || !validateBudget(true)) return;
 
   const fd = new FormData(form);
   const btn = $("form-submit");
@@ -528,7 +574,14 @@ $("use-example").addEventListener("click", fillExample);
 $("form-cancel").addEventListener("click", () => dialog.close());
 $("done-close").addEventListener("click", () => dialog.close());
 $("payout-form").addEventListener("submit", submitPayout);
-$("budgetUsd").addEventListener("input", updateEstimate);
+$("budgetUsd").addEventListener("input", () => {
+  updateEstimate();
+  validateBudget(false);
+});
+$("freelancerWallet").addEventListener("input", () => {
+  if ($("freelancerWallet").getAttribute("aria-invalid")) validateWallet(false);
+});
+$("freelancerWallet").addEventListener("blur", () => validateWallet(false));
 $("corridorCode").addEventListener("change", updateEstimate);
 $("try-unsigned").addEventListener("click", tryUnsigned);
 $("conv-usd").addEventListener("input", () => {

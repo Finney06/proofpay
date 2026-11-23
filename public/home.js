@@ -102,6 +102,8 @@
   addEventListener("scroll", onScroll, { passive: true });
   onScroll();
 
+  document.querySelectorAll(".menu-panel a").forEach((a) => a.addEventListener("click", () => a.closest("details").removeAttribute("open")));
+
   paint();
   loadQuote();
   loadRates();
