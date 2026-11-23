@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css?v=11" />
+  <link rel="stylesheet" href="/styles.css?v=12" />
 </head>
 <body>
   <header class="appbar">
@@ -121,7 +121,7 @@ X-PAYMENT: &lt;x402 payment&gt;
       <a href="/">How it works</a>
       <a href="/registration.json">Agent registration</a>
       <a href="/api/health">Status</a>
-      <a href="https://t.me/Finney01" target="_blank" rel="noopener">Help on Telegram</a>
+      <a href="https://t.me/Finney01" target="_blank" rel="noopener">Need help? Message us on Telegram</a>
     </div>
   </footer>
 
@@ -151,8 +151,14 @@ X-PAYMENT: &lt;x402 payment&gt;
         </div>
         <div class="pair">
           <div class="field">
-            <label for="budgetUsd">Budget (USD₮)</label>
-            <input class="input" id="budgetUsd" name="budgetUsd" type="number" inputmode="decimal" min="1" max="5000" step="0.5" value="5" required />
+            <div class="label-row">
+              <label for="budgetUsd">Agreed price</label>
+              <span class="unit-switch" role="group" aria-label="Price currency">
+                <button type="button" data-unit="local" aria-pressed="true" id="unit-local">₦</button>
+                <button type="button" data-unit="usd" aria-pressed="false">$</button>
+              </span>
+            </div>
+            <input class="input" id="budgetUsd" name="budgetUsd" type="number" inputmode="decimal" min="1" step="any" value="10000" required />
           </div>
           <div class="field">
             <label for="corridorCode">Pay out in</label>
@@ -189,7 +195,7 @@ X-PAYMENT: &lt;x402 payment&gt;
     </form>
   </dialog>
 
-  <script src="/common.js?v=11"></script>
-  <script src="/app.js?v=11"></script>
+  <script src="/common.js?v=12"></script>
+  <script src="/app.js?v=12"></script>
 </body>
 </html>

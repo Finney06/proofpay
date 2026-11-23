@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css?v=11" />
+  <link rel="stylesheet" href="/styles.css?v=12" />
 </head>
 <body>
   <header class="site-nav">
@@ -46,9 +46,9 @@
     <section class="hero">
       <div class="container hero-in">
         <div class="hero-copy">
-          <p class="kicker">Freelancer payouts for Nigeria</p>
+          <p class="kicker">For anyone paying freelancers in Nigeria</p>
           <h1><span>Approve the work.</span> <span>Pay in <em>naira.</em></span></h1>
-          <p class="hero-sub">Post the job in dollars and send your freelancer one link. ProofPay checks what they hand in against your brief. Approve it, and naira lands in their wallet in seconds, at the live rate.</p>
+          <p class="hero-sub">Agree the price in naira or dollars and send your freelancer one link. ProofPay checks what they hand in against your brief. When you approve, your dollars (USD₮) convert and they get naira in their wallet in seconds.</p>
           <div class="hero-actions">
             <a class="btn btn-primary btn-lg" href="/app#new">Create a payout</a>
             <a class="btn btn-secondary btn-lg" href="#how">How it works</a>
@@ -60,25 +60,41 @@
           </dl>
         </div>
 
-        <!-- One payout as a live log, replayed by home.js -->
-        <div class="terminal" aria-label="Example payout">
-          <div class="term-head">
-            <span class="term-title"><span class="live-dot"></span>Payout #8F3A21</span>
-            <span class="term-status" id="term-status">Paid</span>
+        <!-- Client approves, ProofPay checks and converts, freelancer is paid. Replayed by home.js. -->
+        <div class="flow" id="flow" aria-label="Example: a client pays a freelancer through ProofPay">
+          <svg class="flow-line" viewBox="0 0 400 520" preserveAspectRatio="none" aria-hidden="true">
+            <path id="flow-path" d="M110 168 C 110 260, 290 250, 290 352" />
+          </svg>
+
+          <article class="party client">
+            <header>
+              <span class="avatar">LB</span>
+              <div><b>Lagos Brand Studio</b><small>Client · pays in USD₮</small></div>
+            </header>
+            <p class="party-job">Logo refresh · 3 PNG exports</p>
+            <div class="party-row"><span>Agreed price</span><b>$5.00</b></div>
+            <span class="party-btn" id="flow-btn">Approve and pay</span>
+          </article>
+
+          <div class="check" id="flow-check">
+            <p class="check-title">ProofPay check</p>
+            <ul>
+              <li>Link opens</li>
+              <li>PNG at 512 and 1024px</li>
+              <li>Transparent background</li>
+            </ul>
+            <p class="check-rate">Textile FX · <span class="js-rate">₦1,455.06</span> / $1</p>
           </div>
-          <div class="term-amount">
-            <p class="term-label">Tunde Adebayo receives</p>
-            <p class="term-big"><span class="js-total" id="term-total">₦7,275.32</span><small>cNGN</small></p>
-            <p class="term-sub">from <b>$5.00</b> USD₮ · Lagos Brand Studio · logo refresh</p>
-          </div>
-          <ol class="term-log" id="term-log">
-            <li class="done"><time>14:02:11</time><span>Work handed in</span><em>drive.google.com/…/logo-final</em></li>
-            <li class="done"><time>14:02:12</time><span>Checked against the brief</span><em class="ok">3 of 3 passed</em></li>
-            <li class="done"><time>14:06:40</time><span>Approved by Lagos Brand Studio</span><em>$5.00</em></li>
-            <li class="done"><time>14:06:42</time><span>Converted on Textile FX</span><em class="js-rate-line">₦1,455.06 / $1</em></li>
-            <li class="done hl"><time>14:06:43</time><span>Paid to Tunde's MiniPay</span><em class="ok">3 s after approval</em></li>
-          </ol>
-          <div class="term-foot"><span>Receipt ready</span><span class="mono">tx 0x8f3a…21c4</span></div>
+
+          <article class="party freelancer" id="flow-wallet">
+            <header>
+              <span class="avatar alt">TA</span>
+              <div><b>Tunde Adebayo</b><small>Freelancer · MiniPay</small></div>
+            </header>
+            <p class="party-label">Received</p>
+            <p class="party-amount">+<span class="js-total" id="flow-total">₦7,275.32</span></p>
+            <p class="party-meta"><span>cNGN</span><span id="flow-time">3 s after approval</span></p>
+          </article>
         </div>
       </div>
     </section>
@@ -262,13 +278,13 @@
         <a href="https://github.com/Finney06/proofpay" target="_blank" rel="noopener">GitHub</a>
         <a href="/registration.json">Agent registration</a>
         <a href="/api/health">Status</a>
-        <a href="https://t.me/Finney01" target="_blank" rel="noopener">Telegram</a>
+        <a href="https://t.me/Finney01" target="_blank" rel="noopener">Need help? Message us on Telegram</a>
         <a href="https://x.com/Osa_finney" target="_blank" rel="noopener">X</a>
       </nav>
     </div>
   </footer>
 
-  <script src="/common.js?v=11" defer></script>
-  <script src="/home.js?v=11" defer></script>
+  <script src="/common.js?v=12" defer></script>
+  <script src="/home.js?v=12" defer></script>
 </body>
 </html>

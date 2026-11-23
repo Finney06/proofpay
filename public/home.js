@@ -59,16 +59,12 @@
 
   $("rc-amount").addEventListener("input", renderCalc);
 
-  // ---------- hero: the payout log, replayed ----------
-  const status = $("term-status");
-  const total = $("term-total");
-  const lines = [...$("term-log").querySelectorAll("li")];
-  const STATES = ["Waiting for work", "Checking", "Checked", "Approved", "Converting", "Paid"];
-
-  function setStatus(i) {
-    status.textContent = STATES[i];
-    status.dataset.state = i === STATES.length - 1 ? "paid" : i >= 3 ? "busy" : "wait";
-  }
+  // ---------- hero: client approves, ProofPay checks, freelancer is paid ----------
+  const flow = $("flow");
+  const btn = $("flow-btn");
+  const total = $("flow-total");
+  const wallet = $("flow-wallet");
+  const checks = [...$("flow-check").querySelectorAll("li")];
 
   function countUp(ms) {
     const t0 = performance.now();
@@ -83,23 +79,39 @@
     });
   }
 
+  function showPaid() {
+    checks.forEach((li) => li.classList.add("ok"));
+    btn.textContent = "Approved";
+    btn.classList.add("done");
+    wallet.classList.remove("waiting");
+  }
+
   async function replay() {
     for (;;) {
-      lines.forEach((li) => li.classList.remove("done"));
+      checks.forEach((li) => li.classList.remove("ok"));
+      btn.className = "party-btn";
+      btn.textContent = "Approve and pay";
+      wallet.classList.add("waiting");
       total.textContent = "₦0.00";
-      total.parentElement.classList.add("pending");
-      setStatus(0);
+      flow.classList.remove("moving");
       await sleep(900);
-      for (let i = 0; i < lines.length; i++) {
-        lines[i].classList.add("done");
-        setStatus(i + 1);
-        if (i === lines.length - 1) {
-          total.parentElement.classList.remove("pending");
-          await countUp(900);
-        }
-        await sleep(i === 1 ? 1200 : 700);
+      for (const li of checks) {
+        li.classList.add("ok");
+        await sleep(520);
       }
-      await sleep(4200);
+      await sleep(500);
+      btn.classList.add("pressed");
+      await sleep(180);
+      btn.classList.remove("pressed");
+      btn.textContent = "Converting on Textile FX…";
+      flow.classList.add("moving");
+      await sleep(1100);
+      btn.textContent = "Approved";
+      btn.classList.add("done");
+      wallet.classList.remove("waiting");
+      await countUp(900);
+      flow.classList.remove("moving");
+      await sleep(4400);
     }
   }
 
@@ -116,5 +128,6 @@
   loadQuote();
   loadRates();
   setInterval(loadRates, 60000);
-  if (!reduceMotion) replay();
+  if (reduceMotion) showPaid();
+  else replay();
 })();

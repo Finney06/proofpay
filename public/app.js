@@ -420,7 +420,8 @@ function setDialogMode(done) {
 
 function openDialog() {
   $("payout-form").reset();
-  $("budgetUsd").value = "5";
+  $("budgetUsd").value = "10000";
+  setPriceUnit("local");
   $("corridorCode").value = "cNGN";
   $("form-error").hidden = true;
   fieldMessage($("freelancerWallet"), "");
@@ -431,11 +432,47 @@ function openDialog() {
   $("businessName").focus();
 }
 
+// The client can agree the price in the payout currency (naira by default) or in dollars.
+let priceUnit = "local";
+
+function setPriceUnit(unit) {
+  priceUnit = unit;
+  document.querySelectorAll(".unit-switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.unit === unit)));
+  updateEstimate();
+  validateBudget(false);
+}
+
+function localSymbol() {
+  const c = corridor($("corridorCode").value);
+  return c ? c.fiatSymbol : "";
+}
+
+/** The budget in USD₮, whichever currency the price was typed in. */
+function priceUsd() {
+  const v = Number($("budgetUsd").value);
+  if (!Number.isFinite(v) || v <= 0) return NaN;
+  if (priceUnit === "usd") return v;
+  const c = corridor($("corridorCode").value);
+  return c && c.rate > 0 ? v / c.rate : NaN;
+}
+
 function updateEstimate() {
-  const amount = Number($("budgetUsd").value);
   const code = $("corridorCode").value;
-  const est = Number.isFinite(amount) && amount >= 1 ? estimateLocal(code, amount) : "";
-  $("form-estimate").querySelector("strong").textContent = est ? `${est} ${code}` : "–";
+  $("unit-local").textContent = localSymbol() || "₦";
+  const usdAmount = priceUsd();
+  const label = $("form-estimate").querySelector("span");
+  const out = $("form-estimate").querySelector("strong");
+  if (!Number.isFinite(usdAmount)) {
+    out.textContent = "–";
+    return;
+  }
+  if (priceUnit === "usd") {
+    label.textContent = "Your freelancer receives about";
+    out.textContent = usdAmount >= 1 ? `${estimateLocal(code, usdAmount)} ${code}` : "–";
+  } else {
+    label.textContent = "You fund about";
+    out.textContent = `${usd(Math.ceil(usdAmount * 100) / 100)} USD₮`;
+  }
 }
 
 function fillExample() {
@@ -443,8 +480,9 @@ function fillExample() {
   $("title").value = "Logo refresh: 3 PNG exports";
   $("brief").value = "Clean up our logo and export it for the website and social media. Keep the wordmark, tighten the spacing, use our green.";
   $("checklist").value = "PNG at 512px and 1024px\nTransparent background\nUses brand green #0C7A4B";
-  $("budgetUsd").value = "5";
+  $("budgetUsd").value = "7500";
   $("corridorCode").value = "cNGN";
+  setPriceUnit("local");
   $("freelancerName").value = "Tunde Adebayo";
   $("freelancerWallet").value = "";
   updateEstimate();
@@ -486,10 +524,17 @@ function validateWallet(force) {
 
 function validateBudget(force) {
   const input = $("budgetUsd");
-  const v = Number(input.value);
   if (!input.value && !force) return fieldMessage(input, "");
-  if (!Number.isFinite(v) || v < 1) return fieldMessage(input, "The smallest payout is $1.");
-  if (v > 5000) return fieldMessage(input, "The largest payout is $5,000.");
+  const v = priceUsd();
+  const sym = localSymbol();
+  const c = corridor($("corridorCode").value);
+  const inLocal = (usdValue) => (c ? `${sym}${num(usdValue * c.rate, 0)}` : usd(usdValue));
+  if (!Number.isFinite(v) || v < 1) {
+    return fieldMessage(input, priceUnit === "usd" ? "The smallest payout is $1." : `The smallest payout is about ${inLocal(1)} ($1).`);
+  }
+  if (v > 5000) {
+    return fieldMessage(input, priceUnit === "usd" ? "The largest payout is $5,000." : `The largest payout is about ${inLocal(5000)} ($5,000).`);
+  }
   return fieldMessage(input, "");
 }
 
@@ -519,7 +564,7 @@ async function submitPayout(e) {
     title: fd.get("title"),
     brief: fd.get("brief"),
     checklist: fd.get("checklist"),
-    budgetUsd: Number(fd.get("budgetUsd")),
+    budgetUsd: Math.ceil(priceUsd() * 100) / 100,
     corridorCode: fd.get("corridorCode"),
     freelancerName: fd.get("freelancerName"),
     freelancerWallet: String(fd.get("freelancerWallet") || "").trim(),
@@ -582,7 +627,11 @@ $("freelancerWallet").addEventListener("input", () => {
   if ($("freelancerWallet").getAttribute("aria-invalid")) validateWallet(false);
 });
 $("freelancerWallet").addEventListener("blur", () => validateWallet(false));
-$("corridorCode").addEventListener("change", updateEstimate);
+$("corridorCode").addEventListener("change", () => {
+  updateEstimate();
+  validateBudget(false);
+});
+document.querySelectorAll(".unit-switch button").forEach((b) => b.addEventListener("click", () => setPriceUnit(b.dataset.unit)));
 $("try-unsigned").addEventListener("click", tryUnsigned);
 $("conv-usd").addEventListener("input", () => {
   clearTimeout(convTimer);
