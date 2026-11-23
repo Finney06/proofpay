@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProofPay · Hand in your work</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#f1ede5" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=7" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="/"><img src="/logo.svg" alt="" width="30" height="30" />ProofPay</a>
+    <span class="secure">Paid on Celo</span>
+  </header>
+
+  <main class="doc">
+    <p class="muted" id="loading" style="padding:20px 8px;">Loading…</p>
+
+    <div class="card notfound" id="not-found" hidden>
+      <span class="glyph">?</span>
+      <h1 style="font-size:26px;">This link doesn't match a payout</h1>
+      <p class="muted">Ask the client to send it again.</p>
+    </div>
+
+    <div class="ticket-wrap"><article class="ticket" id="ticket" hidden>
+      <div class="ticket-top" id="t-top">
+        <div class="ticket-head">
+          <div>
+            <span class="label">Payout from</span>
+            <strong id="t-from"></strong>
+          </div>
+          <span id="t-status"></span>
+        </div>
+        <div class="ticket-amount" id="t-amount">–</div>
+        <div class="ticket-sub" id="t-amount-label">You'll receive about this, in naira</div>
+      </div>
+      <div class="ticket-body">
+        <dl class="rows">
+          <div class="row"><dt>Job</dt><dd id="t-title"></dd></div>
+          <div class="row"><dt>Budget</dt><dd id="t-budget"></dd></div>
+          <div class="row"><dt>Paid to</dt><dd class="mono" id="t-wallet"></dd></div>
+        </dl>
+      </div>
+      <div class="perf" aria-hidden="true"></div>
+      <div class="stub">
+        <h3>The brief</h3>
+        <p id="t-brief"></p>
+        <h3>What the client will check</h3>
+        <ul class="checks" id="t-checks"></ul>
+      </div>
+    </article></div>
+
+    <section class="card" id="submit-panel" hidden>
+      <h2>Hand in your work</h2>
+      <form class="form-grid" id="submit-form" novalidate style="display:grid;gap:16px;">
+        <div class="field">
+          <label for="deliverableUrl">Link to the work</label>
+          <input class="input" id="deliverableUrl" name="deliverableUrl" type="url" placeholder="https://drive.google.com/…" required />
+          <span class="hint">Google Drive, Figma, GitHub or any link the client can open.</span>
+        </div>
+        <div class="field">
+          <label for="deliverableNotes">What you delivered</label>
+          <textarea class="textarea" id="deliverableNotes" name="deliverableNotes" placeholder="Go through the checklist above in a sentence or two." required></textarea>
+        </div>
+        <p class="form-error" id="submit-error" hidden></p>
+        <button class="btn block" type="submit" id="submit-btn">Hand in work</button>
+      </form>
+    </section>
+
+    <section id="state-panel" hidden></section>
+
+    <div class="doc-foot">
+      <span>The rate is set by Textile FX when the client approves.</span>
+      <span>ProofPay will never ask for your seed phrase or private key.</span>
+    </div>
+  </main>
+
+  <script src="/common.js?v=7"></script>
+  <script src="/task.js?v=7"></script>
+</body>
+</html>

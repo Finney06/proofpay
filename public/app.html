@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProofPay · Payouts</title>
+  <meta name="description" content="Create payouts, check deliveries and pay freelancers in naira (cNGN) on Celo." />
+  <meta name="theme-color" content="#14151b" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=7" />
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="logo" href="/"><img src="/logo.svg" alt="" width="30" height="30" />ProofPay</a>
+      <nav class="nav-links" aria-label="App">
+        <a href="#payouts" aria-current="page">Payouts</a>
+        <a href="#rates">Rates</a>
+        <a href="#agent-api">Agent API</a>
+        <a href="/">How it works</a>
+      </nav>
+      <div class="appbar-right" id="env"><span class="pill on-dark">Connecting</span></div>
+    </div>
+  </header>
+
+  <div class="notice" id="preview-notice" hidden>
+    <div class="notice-in"><strong>Preview mode.</strong> Rates are live from Textile FX, but this server has no agent wallet, so approving a payout sends nothing.</div>
+  </div>
+
+  <main class="page">
+    <section class="app-head">
+      <div>
+        <h1>Payouts</h1>
+        <p>Post a job, send your freelancer their link, and approve when the work is right. They're paid in naira the moment you do.</p>
+      </div>
+      <button class="btn" type="button" id="new-payout-btn">New payout</button>
+    </section>
+
+    <section class="summary" aria-label="Summary">
+      <div class="stat-cell hl"><span class="k">Paid out</span><span class="v" id="stat-paid">$0.00</span></div>
+      <div class="stat-cell"><span class="k">To approve</span><span class="v" id="stat-approve">0</span></div>
+      <div class="stat-cell"><span class="k">Freelancers paid</span><span class="v" id="stat-freelancers">0</span></div>
+      <div class="stat-cell"><span class="k">Delivery to payment</span><span class="v" id="stat-time">–</span></div>
+    </section>
+
+    <div class="app-grid">
+      <section class="panel" id="payouts" aria-label="Payouts">
+        <div class="panel-head">
+          <h2>Your payouts</h2>
+          <div class="tabs" role="tablist" id="tabs">
+            <button class="tab" role="tab" type="button" data-filter="all" aria-selected="true">All<span class="count" data-count="all">0</span></button>
+            <button class="tab" role="tab" type="button" data-filter="waiting">Waiting<span class="count" data-count="waiting">0</span></button>
+            <button class="tab" role="tab" type="button" data-filter="approve">To approve<span class="count" data-count="approve">0</span></button>
+            <button class="tab" role="tab" type="button" data-filter="paid">Paid<span class="count" data-count="paid">0</span></button>
+          </div>
+        </div>
+        <div class="payouts" id="payout-list">
+          <div class="empty">Loading payouts…</div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel" id="rates" aria-label="Rates">
+          <div class="panel-head"><h2>Today's rate</h2><span class="meta">Textile FX</span></div>
+          <div class="converter">
+            <div class="amount-box">
+              <input id="conv-usd" type="number" inputmode="decimal" min="1" max="10000" step="0.5" value="10" aria-label="Amount in USD₮" />
+              <span class="currency-tag">USD₮</span>
+            </div>
+            <div class="amount-box">
+              <output id="conv-out" aria-live="polite">–</output>
+              <span class="currency-tag" id="conv-code-tag">cNGN</span>
+            </div>
+            <p class="source-line" id="conv-source">Fetching a price…</p>
+          </div>
+          <div class="corridor-grid" id="corridor-grid" aria-label="Payout currency"></div>
+        </section>
+
+        <section class="panel" aria-label="Payout rules">
+          <div class="panel-head"><h2>Payout rules</h2></div>
+          <dl class="rules">
+            <div class="row"><dt>Daily limit per client</dt><dd id="rule-client-cap">–</dd></div>
+            <div class="row"><dt>Daily limit per verified person (agents)</dt><dd id="rule-human-cap">–</dd></div>
+            <div class="row"><dt>Smallest payout</dt><dd>$1.00</dd></div>
+            <div class="row"><dt>Paid to</dt><dd>The freelancer's own wallet</dd></div>
+            <div class="row"><dt>Attribution tag</dt><dd class="mono" id="rule-tag">–</dd></div>
+          </dl>
+        </section>
+      </aside>
+    </div>
+
+    <section class="api-tile" id="agent-api" aria-label="Agent API">
+      <div>
+        <span class="tag">Agent API</span>
+        <h2 style="margin-top:14px">Agents can release payouts too</h2>
+        <p style="margin-top:10px">Agents signed with a Self Agent ID can release payouts for work ProofPay has already checked, paying a 1¢ fee over x402. The daily limit follows the person behind the agent, so a second agent doesn't get a second limit.</p>
+        <div class="try-row" style="margin-top:18px">
+          <button class="btn gold small" type="button" id="try-unsigned">Try it without a signature</button>
+          <span class="small" style="color:rgba(251,249,244,.7)">You'll get the real 403 back.</span>
+        </div>
+      </div>
+      <div>
+        <pre class="code" id="api-code"><span class="c"># Signed with @selfxyz/agent-sdk, paid with x402</span>
+POST /api/agent/payout
+x-self-agent-signature: 0x…
+x-self-agent-timestamp: 1764000000000
+X-PAYMENT: &lt;x402 payment&gt;
+
+{ "taskId": "tsk_…" }</pre>
+        <pre class="code" id="try-output" style="margin-top:10px" hidden></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <a class="logo" href="/"><img src="/logo.svg" alt="" width="26" height="26" />ProofPay</a>
+    <div class="footer-links">
+      <a href="/">How it works</a>
+      <a href="/registration.json">Agent registration</a>
+      <a href="/api/health">Status</a>
+      <a href="https://t.me/Finney01" target="_blank" rel="noopener">Help on Telegram</a>
+    </div>
+  </footer>
+
+  <dialog class="sheet" id="new-payout" aria-labelledby="new-payout-title">
+    <form id="payout-form" method="dialog" novalidate>
+      <div class="sheet-head">
+        <h2 id="new-payout-title">New payout</h2>
+        <button class="link-btn" type="button" id="use-example">Fill an example</button>
+      </div>
+      <div class="sheet-body" id="form-fields">
+        <div class="field">
+          <label for="businessName">Your business</label>
+          <input class="input" id="businessName" name="businessName" autocomplete="organization" placeholder="Lagos Brand Studio" required />
+        </div>
+        <div class="field">
+          <label for="title">What needs doing</label>
+          <input class="input" id="title" name="title" placeholder="Logo refresh: 3 PNG exports" required />
+        </div>
+        <div class="field">
+          <label for="brief">Brief</label>
+          <textarea class="textarea" id="brief" name="brief" placeholder="What should the freelancer deliver?" required></textarea>
+        </div>
+        <div class="field">
+          <label for="checklist">What you'll check</label>
+          <textarea class="textarea" id="checklist" name="checklist" placeholder="One item per line"></textarea>
+          <span class="hint">ProofPay goes through each line when the work comes in.</span>
+        </div>
+        <div class="pair">
+          <div class="field">
+            <label for="budgetUsd">Budget (USD₮)</label>
+            <input class="input" id="budgetUsd" name="budgetUsd" type="number" inputmode="decimal" min="1" max="5000" step="0.5" value="5" required />
+          </div>
+          <div class="field">
+            <label for="corridorCode">Pay out in</label>
+            <select class="select" id="corridorCode" name="corridorCode"></select>
+          </div>
+        </div>
+        <p class="estimate" id="form-estimate"><span>Your freelancer receives about</span><strong>–</strong></p>
+        <div class="field">
+          <label for="freelancerName">Freelancer's name</label>
+          <input class="input" id="freelancerName" name="freelancerName" autocomplete="off" placeholder="Tunde Adebayo" required />
+        </div>
+        <div class="field">
+          <label for="freelancerWallet">Freelancer's Celo wallet</label>
+          <input class="input mono" id="freelancerWallet" name="freelancerWallet" placeholder="0x…" autocomplete="off" spellcheck="false" required />
+          <span class="hint">Ask them for their MiniPay or Valora address. The money goes here.</span>
+        </div>
+        <p class="form-error" id="form-error" hidden></p>
+      </div>
+      <div class="sheet-body" id="form-done" hidden>
+        <p>Done. Send this link to <strong id="done-freelancer"></strong> so they can hand in the work.</p>
+        <div class="share-box">
+          <code id="done-link"></code>
+          <button class="btn small" type="button" id="done-copy">Copy link</button>
+        </div>
+        <a class="btn secondary" id="done-wa" href="#" target="_blank" rel="noopener">Send on WhatsApp</a>
+        <p class="small muted">It shows up under <em>Waiting</em> until they submit.</p>
+      </div>
+      <div class="sheet-foot">
+        <button class="btn quiet" type="button" id="form-cancel">Cancel</button>
+        <button class="btn" type="submit" id="form-submit">Create payout</button>
+        <a class="btn secondary" id="done-open" href="#" target="_blank" rel="noopener" hidden>Open freelancer page</a>
+        <button class="btn" type="button" id="done-close" hidden>Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/common.js?v=7"></script>
+  <script src="/app.js?v=7"></script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProofPay · Receipt</title>
+  <meta name="theme-color" content="#f1ede5" />
+  <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=7" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="/"><img src="/logo.svg" alt="" width="30" height="30" />ProofPay</a>
+    <span class="secure">Receipt</span>
+  </header>
+
+  <main class="doc">
+    <p class="muted" id="receipt-loading" style="padding:20px 8px;">Loading receipt…</p>
+
+    <div class="card notfound" id="receipt-error" hidden>
+      <span class="glyph">?</span>
+      <h1 style="font-size:26px;">Receipt not found</h1>
+      <p class="muted">Check the link, or go back to <a href="/">ProofPay</a>.</p>
+    </div>
+
+    <div class="ticket-wrap"><article class="ticket" id="receipt" hidden>
+      <div class="ticket-top" id="r-top">
+        <div class="ticket-head">
+          <div>
+            <span class="label" id="r-to-label">Paid to</span>
+            <strong id="r-to"></strong>
+          </div>
+          <span id="r-badge"></span>
+        </div>
+        <div class="ticket-amount" id="r-amount">–</div>
+        <div class="ticket-sub" id="r-sub"></div>
+      </div>
+      <div class="ticket-body">
+        <dl class="rows">
+          <div class="row"><dt>From</dt><dd id="r-client"></dd></div>
+          <div class="row"><dt>For</dt><dd id="r-task"></dd></div>
+          <div class="row"><dt>Budget</dt><dd id="r-budget"></dd></div>
+          <div class="row"><dt>Rate</dt><dd id="r-rate"></dd></div>
+          <div class="row"><dt>Date</dt><dd id="r-date"></dd></div>
+          <div class="row"><dt>Wallet</dt><dd id="r-wallet"></dd></div>
+        </dl>
+      </div>
+      <div class="perf" aria-hidden="true"></div>
+      <div class="stub">
+        <h3>The work</h3>
+        <dl class="rows">
+          <div class="row"><dt>Delivery</dt><dd id="r-delivery"></dd></div>
+          <div class="row"><dt>Check</dt><dd id="r-review"></dd></div>
+          <div class="row"><dt>Fingerprint</dt><dd class="mono small" id="r-hash"></dd></div>
+        </dl>
+        <p class="small muted" id="r-review-summary"></p>
+
+        <h3 style="margin-top:6px;">Approval</h3>
+        <dl class="rows">
+          <div class="row"><dt>Approved by</dt><dd id="r-approver"></dd></div>
+          <div class="row"><dt>How</dt><dd id="r-method"></dd></div>
+          <div class="row" id="r-self-row" hidden><dt>Self Agent ID</dt><dd class="mono" id="r-self"></dd></div>
+          <div class="row"><dt>Daily limit used</dt><dd id="r-cap"></dd></div>
+        </dl>
+
+        <h3 style="margin-top:6px;">On Celo</h3>
+        <dl class="rows" id="r-onchain"></dl>
+        <p class="small muted">Every transaction ProofPay sends carries its attribution tag, <span class="mono" id="r-tag"></span>. Anyone can check them on Celoscan.</p>
+
+        <div class="receipt-actions no-print">
+          <button class="btn secondary" id="copy-link-btn" type="button">Copy link</button>
+          <button class="btn secondary" id="print-btn" type="button">Save as PDF</button>
+        </div>
+      </div>
+    </article></div>
+
+    <div class="doc-foot no-print">
+      <span>Payments on Celo mainnet. Conversions by Textile FX.</span>
+    </div>
+  </main>
+
+  <script src="/common.js?v=7"></script>
+  <script src="/receipt.js?v=7"></script>
+</body>
+</html>

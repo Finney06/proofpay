@@ -1,0 +1,28 @@
+{
+  "name": "proofpay-celo-agent",
+  "version": "1.0.0",
+  "description": "AI payout agent for businesses hiring remote freelancers: vets deliverables, gates payouts with Self Agent ID per-human caps, converts USDT to local stablecoins (cNGN default) via Textile FX on Celo mainnet, and issues verifiable public receipts.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test:e2e": "tsx scripts/verify-e2e.ts",
+    "register:erc8004": "tsx scripts/register-erc8004.ts"
+  },
+  "dependencies": {
+    "@celo/attribution-tags": "^0.5.0",
+    "@selfxyz/agent-sdk": "latest",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "viem": "^2.23.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+data/*.json
+!data/.gitkeep
+*.log
+.DS_Store
+PLAN.md
+.agents/
+.claude/
