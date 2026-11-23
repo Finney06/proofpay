@@ -79,7 +79,7 @@ app.get("/.well-known/agent.json", (_req, res) => {
 });
 
 app.use("/api", apiRouter);
-app.use(express.static(PUBLIC_DIR));
+app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
 
 app.get("/receipt/:id", (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "receipt.html"));
