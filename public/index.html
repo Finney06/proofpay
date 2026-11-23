@@ -4,338 +4,304 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ProofPay · Approve the work. Pay in naira.</title>
-  <meta name="description" content="For businesses paying freelancers in Nigeria. Fund the job in dollars, ProofPay checks the delivery, and when you approve, the freelancer has cNGN in their own wallet." />
-  <meta property="og:title" content="ProofPay: approve the work, pay in naira" />
-  <meta property="og:description" content="Fund a freelance job in dollars. ProofPay checks the delivery, and when you approve, your freelancer gets naira (cNGN) in their own wallet on Celo." />
-  <meta name="theme-color" content="#12131a" />
+  <meta name="description" content="Pay freelancers in Nigeria once their work is checked. Fund the job in dollars; when you approve, they receive naira (cNGN) in their own wallet within seconds." />
+  <meta property="og:title" content="ProofPay · Approve the work. Pay in naira." />
+  <meta property="og:description" content="Pay freelancers in Nigeria once their work is checked. Fund in dollars, they receive naira in seconds." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#fbfaf7" />
   <link rel="icon" href="/logo.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css?v=7" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=8" />
 </head>
-<body class="landing">
-  <header class="hero">
-    <div class="wrap">
-      <nav class="topnav" aria-label="Main">
-        <a class="logo" href="/"><img src="/logo.svg" alt="" width="30" height="30" />ProofPay</a>
-        <div class="topnav-links">
-          <a href="#how">How it works</a>
-          <a href="#proof">Receipts</a>
-          <a href="#agents">For agents</a>
-        </div>
-        <a class="btn ghost-light small" href="/app">Open the app</a>
+<body>
+  <header class="site-nav">
+    <div class="container nav-in">
+      <a class="logo" href="/"><img src="/logo.svg" alt="" width="28" height="28" />ProofPay</a>
+      <nav class="nav-links" aria-label="Main">
+        <a href="#how">How it works</a>
+        <a href="#freelancers">For freelancers</a>
+        <a href="#agents">For agents</a>
+        <a href="#faq">FAQ</a>
       </nav>
-
-      <div class="hero-grid">
-        <div class="hero-copy">
-          <p class="kicker">For businesses paying freelancers in Nigeria</p>
-          <h1 class="display">Approve the work. Pay in <em>naira.</em></h1>
-          <p class="hero-sub">Fund the job in dollars. ProofPay checks the delivery against your brief, and the moment you approve, your freelancer has cNGN in their own wallet.</p>
-          <div class="hero-cta">
-            <a class="btn gold" href="/app#new">Create a payout</a>
-            <button class="btn ghost-light" type="button" id="replay">
-              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7.5-4.5z" fill="currentColor"/></svg>
-              Watch a payout
-            </button>
-          </div>
-          <ul class="hero-facts">
-            <li><b>Live on Celo</b> mainnet</li>
-            <li><b>Rates</b> from Textile FX</li>
-            <li><b>Paid to</b> MiniPay or Valora</li>
-          </ul>
-        </div>
-
-        <!-- A payout receipt that prints itself (home.js). The final state is the static markup. -->
-        <div class="slip-stage" aria-label="Example payout receipt">
-          <div class="slip-shadow">
-            <article class="slip" id="slip">
-              <header class="slip-head">
-                <span class="slip-brand">PROOFPAY</span>
-                <span>PAYOUT 8F3A21</span>
-              </header>
-              <dl class="slip-rows">
-                <div><dt>Client</dt><dd>Lagos Brand Studio</dd></div>
-                <div><dt>Freelancer</dt><dd>Tunde A.</dd></div>
-                <div><dt>Job</dt><dd>Logo refresh, 3 PNGs</dd></div>
-              </dl>
-              <hr class="slip-rule" />
-              <p class="slip-label" id="slip-status">Delivery checked</p>
-              <ul class="slip-checks" id="slip-checks">
-                <li class="ok"><span class="box"></span>Link opens</li>
-                <li class="ok"><span class="box"></span>PNG at 512 and 1024px</li>
-                <li class="ok"><span class="box"></span>Transparent background</li>
-              </ul>
-              <hr class="slip-rule" />
-              <dl class="slip-rows">
-                <div><dt>Budget</dt><dd>$5.00 USD₮</dd></div>
-                <div><dt>Textile FX rate</dt><dd class="js-rate">₦1,452.77</dd></div>
-              </dl>
-              <div class="slip-approve" id="slip-approve" hidden><span class="slip-btn" id="slip-btn">Approve and pay $5.00</span></div>
-              <div class="slip-total" id="slip-total">
-                <span>Paid</span>
-                <strong><span class="js-total">₦7,263.84</span> <small>cNGN</small></strong>
-              </div>
-              <p class="slip-foot" id="slip-foot">tx 0x8f3a…21c4 · Celo · 2 s after approval</p>
-            </article>
-          </div>
-        </div>
+      <div class="nav-actions">
+        <a class="btn btn-ghost btn-sm" href="/app">Open app</a>
+        <a class="btn btn-primary btn-sm" href="/app#new">Create a payout</a>
       </div>
     </div>
   </header>
 
-  <div class="ticker" aria-label="Live rates from Textile FX">
-    <span class="ticker-label"><span class="live-dot"></span>Live · Textile FX</span>
-    <div class="ticker-track"><div class="ticker-run" id="ticker-run">
-      <span><b>cNGN</b> ₦1,452.77</span><span><b>wBRL</b> R$5.94</span><span><b>IDRX</b> Rp18,317</span><span><b>wARS</b> ARS 1,759.78</span><span><b>wMXN</b> MX$19.13</span><span><b>wCOP</b> COP 3,493</span>
-    </div></div>
-  </div>
-
   <main>
-    <section class="band paper" id="why">
-      <div class="wrap">
-        <header class="chapter">
-          <span class="chapter-no">01</span>
-          <div>
-            <h2 class="display-2">Your freelancer shouldn't wait a week to see naira.</h2>
-            <p class="lede">Paying someone in Lagos from a dollar account usually means a deposit before you've seen anything, then days for the transfer, at whatever rate the bank picks. ProofPay flips the order.</p>
+    <section class="hero">
+      <div class="container hero-in">
+        <div class="hero-copy">
+          <a class="announce" href="#rates"><span class="live-dot"></span>Live on Celo · 1 USD₮ = <span class="js-rate">₦1,452.77</span></a>
+          <h1><span>Approve the work.</span> <span>Pay in naira.</span></h1>
+          <p class="hero-sub">ProofPay is how businesses pay freelancers in Nigeria. Fund the job in dollars, we check the delivery against your brief, and when you approve, they have naira in their own wallet within seconds.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary btn-lg" href="/app#new">Create a payout</a>
+            <a class="btn btn-secondary btn-lg" href="#how">See how it works</a>
           </div>
-        </header>
+          <p class="hero-fine">No account for your freelancer. 0.02% conversion fee, under 1¢ network fee.</p>
+        </div>
 
-        <div class="compare" role="table" aria-label="The usual way compared with ProofPay">
-          <div class="compare-head" role="row">
-            <span role="columnheader"></span>
-            <span role="columnheader">The usual way</span>
-            <span role="columnheader" class="us">With ProofPay</span>
+        <!-- Product view: one payout, approved on a loop by home.js -->
+        <div class="shot" aria-hidden="true">
+          <div class="window">
+            <div class="window-bar"><span class="dots"><i></i><i></i><i></i></span><span class="window-url">ProofPay · Payouts</span></div>
+            <div class="window-body">
+              <div class="pay-head">
+                <div>
+                  <p class="pay-from">Lagos Brand Studio → Tunde Adebayo</p>
+                  <h3>Logo refresh, 3 PNG exports</h3>
+                </div>
+                <span class="status status-approve" id="shot-status">Ready to approve</span>
+              </div>
+
+              <div class="pay-amounts">
+                <div><span>You pay</span><b>$5.00</b><small>USD₮</small></div>
+                <svg class="pay-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div><span>Tunde receives</span><b class="js-five">₦7,264</b><small>cNGN</small></div>
+              </div>
+
+              <div class="pay-checks">
+                <p class="pay-label">Delivery check · 3 of 3 passed</p>
+                <ul>
+                  <li><span class="tick"></span>Link opens</li>
+                  <li><span class="tick"></span>PNG at 512 and 1024px</li>
+                  <li><span class="tick"></span>Transparent background</li>
+                </ul>
+              </div>
+
+              <div class="pay-action">
+                <span class="pay-btn" id="shot-btn">Approve and pay $5.00</span>
+                <span class="pay-note">Firm price from Textile FX on approval</span>
+              </div>
+            </div>
           </div>
-          <div class="compare-row" role="row">
-            <span role="rowheader">Before you've seen the work</span>
-            <span role="cell">You often pay a deposit up front</span>
-            <span role="cell" class="us">Nothing moves until you approve</span>
-          </div>
-          <div class="compare-row" role="row">
-            <span role="rowheader">When they're paid</span>
-            <span role="cell">Days later, once an international transfer clears</span>
-            <span role="cell" class="us">Seconds after you approve</span>
-          </div>
-          <div class="compare-row" role="row">
-            <span role="rowheader">The rate</span>
-            <span role="cell">Whatever the bank or app applies</span>
-            <span role="cell" class="us">Quoted live by Textile FX, shown before you pay</span>
-          </div>
-          <div class="compare-row" role="row">
-            <span role="rowheader">Where it lands</span>
-            <span role="cell">A platform balance or a bank account</span>
-            <span role="cell" class="us">Their own Celo wallet, like MiniPay or Valora</span>
-          </div>
-          <div class="compare-row" role="row">
-            <span role="rowheader">Proof it happened</span>
-            <span role="cell">Screenshots in a chat</span>
-            <span role="cell" class="us">A public receipt anyone can check</span>
+
+          <div class="toast" id="shot-toast">
+            <span class="toast-icon"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <div><b>Paid <span class="js-total">₦7,263.84</span></b><span>to Tunde's MiniPay wallet · 3 s</span></div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="band paper tight" id="how">
-      <div class="wrap">
-        <header class="chapter">
-          <span class="chapter-no">02</span>
-          <div>
-            <h2 class="display-2">One payout, start to finish.</h2>
-            <p class="lede">Four stops. Your freelancer never opens an account, and you never pay for work you haven't seen.</p>
-          </div>
-        </header>
+    <section class="facts" aria-label="At a glance">
+      <div class="container facts-in">
+        <div><b class="js-rate">₦1,452.77</b><span>per $1 today, live from Textile FX</span></div>
+        <div><b>Seconds</b><span>from your approval to their wallet</span></div>
+        <div><b>0.02%</b><span>conversion fee, no monthly cost</span></div>
+        <div><b>6 currencies</b><span>naira, reais, rupiah and three pesos</span></div>
+      </div>
+    </section>
 
-        <ol class="track">
-          <li class="stop">
-            <span class="stop-no">01</span>
-            <h3>Post the job</h3>
-            <p>Write the brief, list what you'll check, and set the budget in dollars.</p>
-            <div class="frag">
-              <div class="frag-line"><span>Logo refresh</span><b>$5.00</b></div>
-              <div class="frag-chips"><span>PNG 512 + 1024</span><span>Transparent</span><span>Brand green</span></div>
+    <section class="section" id="how">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">How it works</p>
+          <h2>Three steps, and you never pay for work you haven't seen.</h2>
+        </div>
+
+        <ol class="steps">
+          <li class="step">
+            <div class="step-visual">
+              <div class="mini-card">
+                <div class="mini-row"><span>Logo refresh</span><b>$5.00</b></div>
+                <div class="mini-tags"><span>PNG 512 + 1024</span><span>Transparent</span><span>Brand green</span></div>
+                <div class="mini-link"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9.5 6.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="js-host">proofpay</span>/t/8f3a21</div>
+              </div>
             </div>
+            <span class="step-num">1</span>
+            <h3>Post the job and send the link</h3>
+            <p>Write the brief, list what you'll check and set the budget in dollars. Send your freelancer their link on WhatsApp.</p>
           </li>
-          <li class="stop">
-            <span class="stop-no">02</span>
-            <h3>Send the link</h3>
-            <p>Share it on WhatsApp. They see what they'll earn in naira and hand in the work there.</p>
-            <div class="frag">
-              <div class="frag-link"><span class="js-host">proofpay</span>/t/tsk_8f3a21</div>
-              <div class="frag-line muted"><span>Tunde will receive</span><b class="js-five">₦7,264</b></div>
+          <li class="step">
+            <div class="step-visual">
+              <div class="mini-card">
+                <div class="mini-check ok">Link opens</div>
+                <div class="mini-check ok">PNG 512 + 1024</div>
+                <div class="mini-check bad">Brand green not mentioned</div>
+              </div>
             </div>
+            <span class="step-num">2</span>
+            <h3>We check the delivery</h3>
+            <p>When they hand in the work, ProofPay opens the link, fingerprints it and goes through your checklist, so gaps show up before you pay.</p>
           </li>
-          <li class="stop">
-            <span class="stop-no">03</span>
-            <h3>ProofPay checks it</h3>
-            <p>It opens the link, fingerprints the delivery and goes through your list, so you see gaps first.</p>
-            <div class="frag">
-              <div class="frag-check ok">Link opens</div>
-              <div class="frag-check ok">PNG 512 + 1024</div>
-              <div class="frag-check no">Brand green not mentioned</div>
+          <li class="step">
+            <div class="step-visual">
+              <div class="mini-card">
+                <div class="mini-row"><span>Paid to Tunde</span><b class="green js-five">₦7,264</b></div>
+                <div class="mini-row muted"><span>cNGN · Celo</span><span>Receipt ready</span></div>
+              </div>
             </div>
-          </li>
-          <li class="stop">
-            <span class="stop-no">04</span>
-            <h3>Approve. Paid in naira.</h3>
-            <p>Textile FX converts the dollars and cNGN lands in their wallet, with a receipt for both of you.</p>
-            <div class="frag paid">
-              <div class="frag-line"><span>Paid to Tunde</span><b class="js-five">₦7,264</b></div>
-              <div class="frag-line muted"><span>cNGN · Celo</span><span>2 s</span></div>
-            </div>
+            <span class="step-num">3</span>
+            <h3>Approve and they're paid</h3>
+            <p>One tap converts the dollars on Textile FX and sends naira to their wallet. You both get a receipt anyone can verify.</p>
           </li>
         </ol>
       </div>
     </section>
 
-    <section class="band night" id="proof">
-      <div class="wrap proof-grid">
-        <div>
-          <header class="chapter on-dark">
-            <span class="chapter-no">03</span>
-            <div>
-              <h2 class="display-2">Every payout ends in a receipt anyone can check.</h2>
-            </div>
-          </header>
-          <ol class="notes">
-            <li><span class="pin">1</span><div><b>What was delivered</b><p>A SHA-256 fingerprint of the hand-in, so the work can't quietly change after it's paid.</p></div></li>
-            <li><span class="pin">2</span><div><b>How it was checked</b><p>Every line of your checklist, passed or flagged, exactly as you saw it before approving.</p></div></li>
-            <li><span class="pin">3</span><div><b>The price you got</b><p>The firm Textile FX rate at the moment you approved, not an estimate.</p></div></li>
-            <li><span class="pin">4</span><div><b>Where the money went</b><p>The conversion and the payment, each a Celo transaction you can open on Celoscan.</p></div></li>
-          </ol>
+    <section class="section section-alt" id="freelancers">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">Why ProofPay</p>
+          <h2>Fair to the person paying, and to the person doing the work.</h2>
+          <p class="section-sub">Paying someone in Lagos from a dollar account usually means a deposit before you've seen anything, then days of waiting at whatever rate the bank picks. ProofPay changes the order.</p>
         </div>
 
-        <div class="slip-shadow">
-          <article class="slip full">
-            <header class="slip-head"><span class="slip-brand">PROOFPAY · RECEIPT</span><span>23 NOV 2026</span></header>
-            <dl class="slip-rows">
-              <div><dt>Paid to</dt><dd>Tunde A.</dd></div>
-              <div><dt>From</dt><dd>Lagos Brand Studio</dd></div>
-              <div><dt>For</dt><dd>Logo refresh, 3 PNGs</dd></div>
-            </dl>
-            <hr class="slip-rule" />
-            <dl class="slip-rows">
-              <div class="pinned"><dt><span class="pin">1</span>Fingerprint</dt><dd>0x4f8e…bdef1</dd></div>
-              <div class="pinned"><dt><span class="pin">2</span>Checks</dt><dd>3 of 3 passed</dd></div>
-              <div class="pinned"><dt><span class="pin">3</span>Rate</dt><dd class="js-rate">₦1,452.77</dd></div>
-            </dl>
-            <hr class="slip-rule" />
-            <dl class="slip-rows">
-              <div class="pinned"><dt><span class="pin">4</span>Conversion</dt><dd>0x8f3a…21c4</dd></div>
-              <div><dt>Payment</dt><dd>0x2b91…7e0a</dd></div>
-            </dl>
-            <div class="slip-total done">
-              <span>Paid</span>
-              <strong><span class="js-total">₦7,263.84</span> <small>cNGN</small></strong>
-            </div>
-            <p class="slip-foot">Approved by Lagos Brand Studio · 14:06</p>
-          </article>
+        <div class="audience">
+          <div class="audience-card">
+            <h3>For the business</h3>
+            <ul class="benefits">
+              <li><b>Pay only for checked work.</b> Nothing converts or moves until you approve.</li>
+              <li><b>One link per job.</b> No invoices to chase, no bank details to collect.</li>
+              <li><b>A receipt for your records.</b> Brief, delivery, approval and the transactions in one place.</li>
+            </ul>
+          </div>
+          <div class="audience-card">
+            <h3>For the freelancer</h3>
+            <ul class="benefits">
+              <li><b>See the naira before you start.</b> The link shows what you'll receive at today's rate.</li>
+              <li><b>Paid in seconds.</b> cNGN lands in MiniPay, Valora or any Celo wallet you control.</li>
+              <li><b>Nothing to sign up for.</b> Open the link, hand in the work, get paid.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="band paper" id="rates">
-      <div class="wrap rates-grid">
-        <header class="chapter">
-          <span class="chapter-no">04</span>
-          <div>
-            <h2 class="display-2">Know what they'll get before you post the job.</h2>
-            <p class="lede">Type a budget. These are Textile FX's live rates; the exact amount is fixed when you approve.</p>
+    <section class="section" id="proof">
+      <div class="container split split-reverse">
+        <div class="receipt-shot" aria-hidden="true">
+          <div class="receipt-card">
+            <div class="receipt-top">
+              <span>Payout receipt</span>
+              <span class="status status-paid">Paid</span>
+            </div>
+            <p class="receipt-amount"><span class="js-total">₦7,263.84</span> <small>cNGN</small></p>
+            <p class="receipt-to">to Tunde Adebayo · from Lagos Brand Studio</p>
+            <dl class="receipt-rows">
+              <div><dt>Delivery fingerprint</dt><dd class="mono">0x4f8e…bdef1</dd></div>
+              <div><dt>Checklist</dt><dd>3 of 3 passed</dd></div>
+              <div><dt>Rate at approval</dt><dd class="js-rate">₦1,452.77</dd></div>
+              <div><dt>Conversion</dt><dd class="mono link">0x8f3a…21c4</dd></div>
+              <div><dt>Payment</dt><dd class="mono link">0x2b91…7e0a</dd></div>
+            </dl>
           </div>
-        </header>
+        </div>
+        <div class="section-head">
+          <p class="eyebrow">Receipts</p>
+          <h2>Every payout ends with proof both sides can share.</h2>
+          <ul class="points">
+            <li><b>What was delivered.</b> A fingerprint of the hand-in, so the work can't quietly change after payment.</li>
+            <li><b>How it was checked.</b> Each line of your checklist, exactly as you saw it before approving.</li>
+            <li><b>Where the money went.</b> The conversion and the payment, both public on Celo.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
-        <div class="board">
-          <label class="board-in" for="rc-amount">
-            <span class="cur-sign" aria-hidden="true">$</span>
-            <input id="rc-amount" type="number" inputmode="decimal" min="1" step="any" value="50" aria-label="Budget in USD₮" />
-            <span class="cur-code">USD₮</span>
+    <section class="section section-alt" id="rates">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">Rates</p>
+          <h2>Know what they'll receive before you post the job.</h2>
+          <p class="section-sub">Live rates from Textile FX. The exact amount is fixed the moment you approve, and it's printed on the receipt.</p>
+        </div>
+        <div class="calc">
+          <label class="calc-input" for="rc-amount">
+            <span class="calc-label">You pay</span>
+            <span class="calc-field"><span>$</span><input id="rc-amount" type="number" inputmode="decimal" min="1" step="any" value="50" aria-label="Budget in USD₮" /><em>USD₮</em></span>
           </label>
-          <ul class="board-rows" id="rc-out" aria-live="polite">
+          <ul class="calc-rows" id="rc-out" aria-live="polite">
             <li><span>Loading rates…</span></li>
           </ul>
-          <p class="board-note" id="rc-note"></p>
+          <p class="calc-note" id="rc-note"></p>
         </div>
       </div>
     </section>
 
-    <section class="band night" id="agents">
-      <div class="wrap">
-        <header class="chapter on-dark">
-          <span class="chapter-no">05</span>
-          <div>
-            <h2 class="display-2">Agents can pay out too, if a real person is behind them.</h2>
-            <p class="lede">Other AI agents can release payouts for checked work through ProofPay's API. Every request passes three gates before any money moves.</p>
-          </div>
-        </header>
-
+    <section class="section section-dark" id="agents">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">For AI agents</p>
+          <h2>Agents can release payouts too, if a real person is behind them.</h2>
+          <p class="section-sub">Other agents can pay for checked work through ProofPay's API. Before any money moves, every request has to clear three checks.</p>
+          <p class="agent-links"><a href="/app#agent-api">Try the API</a><a href="/registration.json">Agent registration (ERC-8004)</a></p>
+        </div>
         <ol class="gates">
-          <li><span class="gate-code">403</span><b>Is a real person behind it?</b><p>The request must be signed with a Self Agent ID. No proof, no service.</p></li>
-          <li><span class="gate-code">402</span><b>Has it paid the fee?</b><p>One cent in USD₮ over x402, settled on Celo.</p></li>
-          <li><span class="gate-code">429</span><b>Is that person under their limit?</b><p>One daily limit per person, shared by all their agents.</p></li>
-          <li class="pass"><span class="gate-code">200</span><b>Paid</b><p>Converted, sent, and the receipt comes back in the response.</p></li>
+          <li><span class="gate-n">1</span><div><b>A verified person stands behind it</b><p>Requests must carry a Self Agent ID signature. Anything else is turned away with a 403.</p></div></li>
+          <li><span class="gate-n">2</span><div><b>It pays a one-cent fee</b><p>Settled in USD₮ over x402 on Celo before the payout runs.</p></div></li>
+          <li><span class="gate-n">3</span><div><b>That person is under their daily limit</b><p>All of one person's agents share a single limit, so a second agent doesn't get a second one.</p></div></li>
         </ol>
-        <p class="agents-foot"><a href="/registration.json">ProofPay's agent registration (ERC-8004)</a><span>·</span><a href="/app#agent-api">Try the API</a></p>
       </div>
     </section>
 
-    <section class="band paper" id="questions">
-      <div class="wrap faq-grid">
-        <header class="chapter">
-          <span class="chapter-no">06</span>
-          <div><h2 class="display-2">Fair questions.</h2></div>
-        </header>
+    <section class="section" id="faq">
+      <div class="container split">
+        <div class="section-head">
+          <p class="eyebrow">FAQ</p>
+          <h2>Questions people ask first.</h2>
+        </div>
         <div class="faq">
           <details open>
             <summary>What if the work isn't what I asked for?</summary>
             <p>Don't approve it. Nothing is converted or sent until you do, and the checklist shows you what's missing.</p>
           </details>
           <details>
-            <summary>What if the rate moves?</summary>
-            <p>Your freelancer sees an estimate while they work. The firm price is set by Textile FX the moment you approve, and it's printed on the receipt.</p>
-          </details>
-          <details>
-            <summary>What if I paste the wrong wallet?</summary>
-            <p>Payments on a blockchain can't be reversed. ProofPay shows the full address before you pay, so confirm it with your freelancer first.</p>
+            <summary>What if the rate moves while they work?</summary>
+            <p>Your freelancer sees an estimate. The firm price is set by Textile FX when you approve, and it's on the receipt.</p>
           </details>
           <details>
             <summary>Does my freelancer need an account?</summary>
-            <p>No. They open the link you send, hand in the work, and get paid to a Celo wallet they already control, like MiniPay or Valora.</p>
+            <p>No. They open your link, hand in the work, and get paid to a Celo wallet they already control, such as MiniPay or Valora.</p>
           </details>
           <details>
-            <summary>Can I pay outside Nigeria?</summary>
+            <summary>What if I paste the wrong wallet address?</summary>
+            <p>Payments on a blockchain can't be reversed. ProofPay shows the full address before you pay, so confirm it with your freelancer first.</p>
+          </details>
+          <details>
+            <summary>Can I pay people outside Nigeria?</summary>
             <p>Yes. The same flow pays out in Brazilian reais, Indonesian rupiah, and Argentine, Mexican and Colombian pesos.</p>
           </details>
         </div>
       </div>
     </section>
 
-    <section class="closer">
-      <div class="wrap closer-in">
-        <h2 class="display">Pay your next freelancer in naira.</h2>
-        <div class="hero-cta">
-          <a class="btn dark" href="/app#new">Create a payout</a>
-          <a class="btn ghost-dark" href="/app">Open the app</a>
+    <section class="cta">
+      <div class="container cta-in">
+        <h2>Pay your next freelancer in naira.</h2>
+        <p>Create a payout in under a minute. Your freelancer gets the link, you approve when it's right.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="/app#new">Create a payout</a>
+          <a class="btn btn-secondary btn-lg" href="/app">Open the app</a>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="site-foot">
-    <div class="wrap site-foot-in">
-      <a class="logo" href="/"><img src="/logo.svg" alt="" width="26" height="26" />ProofPay</a>
+  <footer class="site-footer">
+    <div class="container footer-in">
+      <div>
+        <a class="logo" href="/"><img src="/logo.svg" alt="" width="24" height="24" />ProofPay</a>
+        <p>Built in Lagos. Payments on Celo mainnet, conversions by Textile FX.</p>
+      </div>
       <nav aria-label="Footer">
         <a href="/app">App</a>
+        <a href="https://github.com/Finney06/proofpay" target="_blank" rel="noopener">GitHub</a>
         <a href="/registration.json">Agent registration</a>
         <a href="/api/health">Status</a>
         <a href="https://t.me/Finney01" target="_blank" rel="noopener">Telegram</a>
         <a href="https://x.com/Osa_finney" target="_blank" rel="noopener">X</a>
       </nav>
-      <p>Built in Lagos for Celo's Agents Open for Business. Payments on Celo mainnet, conversions by Textile FX.</p>
     </div>
   </footer>
 
-  <script src="/common.js?v=7"></script>
-  <script src="/home.js?v=7" defer></script>
+  <script src="/common.js?v=8" defer></script>
+  <script src="/home.js?v=8" defer></script>
 </body>
 </html>
