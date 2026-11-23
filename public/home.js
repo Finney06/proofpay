@@ -1,20 +1,19 @@
-// Landing page: live numbers, the rate calculator and the hero payout loop.
+// Landing page: live numbers, the payout log replay, the rate calculator, nav state.
 (() => {
   const { $, api, postJson, num, clock } = window.PP;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  document.querySelectorAll(".js-host").forEach((el) => {
-    el.textContent = location.host;
-  });
+  document.querySelectorAll(".js-host").forEach((el) => (el.textContent = location.host));
 
   // Example payout of $5, replaced by a live Textile FX quote.
-  const live = { total: 7263.84, rate: 1452.77 };
+  const live = { total: 7275.32, rate: 1455.06 };
 
   function paint() {
     document.querySelectorAll(".js-total").forEach((el) => (el.textContent = `₦${num(live.total)}`));
     document.querySelectorAll(".js-rate").forEach((el) => (el.textContent = `₦${num(live.rate)}`));
     document.querySelectorAll(".js-five").forEach((el) => (el.textContent = `₦${num(live.total, 0)}`));
+    document.querySelectorAll(".js-rate-line").forEach((el) => (el.textContent = `₦${num(live.rate)} / $1`));
   }
 
   async function loadQuote() {
@@ -60,54 +59,62 @@
 
   $("rc-amount").addEventListener("input", renderCalc);
 
-  // ---------- hero: one payout, approved on a loop ----------
-  const status = $("shot-status");
-  const btn = $("shot-btn");
-  const toast = $("shot-toast");
+  // ---------- hero: the payout log, replayed ----------
+  const status = $("term-status");
+  const total = $("term-total");
+  const lines = [...$("term-log").querySelectorAll("li")];
+  const STATES = ["Waiting for work", "Checking", "Checked", "Approved", "Converting", "Paid"];
 
-  function setState(state) {
-    if (state === "ready") {
-      status.className = "status status-approve";
-      status.textContent = "Ready to approve";
-      btn.className = "pay-btn";
-      btn.textContent = "Approve and pay $5.00";
-      toast.classList.remove("show");
-    } else if (state === "busy") {
-      btn.className = "pay-btn busy";
-      btn.textContent = "Converting on Textile FX…";
-    } else {
-      status.className = "status status-paid";
-      status.textContent = "Paid";
-      btn.className = "pay-btn done";
-      btn.textContent = "View receipt";
-      toast.classList.add("show");
-    }
+  function setStatus(i) {
+    status.textContent = STATES[i];
+    status.dataset.state = i === STATES.length - 1 ? "paid" : i >= 3 ? "busy" : "wait";
   }
 
-  async function loop() {
+  function countUp(ms) {
+    const t0 = performance.now();
+    return new Promise((resolve) => {
+      const step = (now) => {
+        const t = Math.min(1, (now - t0) / ms);
+        total.textContent = `₦${num(live.total * (1 - Math.pow(1 - t, 3)))}`;
+        if (t < 1) requestAnimationFrame(step);
+        else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  async function replay() {
     for (;;) {
-      setState("ready");
-      await sleep(2600);
-      btn.classList.add("pressed");
-      await sleep(180);
-      setState("busy");
-      await sleep(1300);
-      setState("paid");
-      await sleep(4600);
+      lines.forEach((li) => li.classList.remove("done"));
+      total.textContent = "₦0.00";
+      total.parentElement.classList.add("pending");
+      setStatus(0);
+      await sleep(900);
+      for (let i = 0; i < lines.length; i++) {
+        lines[i].classList.add("done");
+        setStatus(i + 1);
+        if (i === lines.length - 1) {
+          total.parentElement.classList.remove("pending");
+          await countUp(900);
+        }
+        await sleep(i === 1 ? 1200 : 700);
+      }
+      await sleep(4200);
     }
   }
 
+  // ---------- nav ----------
   const nav = document.querySelector(".site-nav");
   const onScroll = () => nav.classList.toggle("scrolled", scrollY > 8);
   addEventListener("scroll", onScroll, { passive: true });
   onScroll();
-
-  document.querySelectorAll(".menu-panel a").forEach((a) => a.addEventListener("click", () => a.closest("details").removeAttribute("open")));
+  document.querySelectorAll(".menu-panel a").forEach((a) =>
+    a.addEventListener("click", () => a.closest("details").removeAttribute("open"))
+  );
 
   paint();
   loadQuote();
   loadRates();
   setInterval(loadRates, 60000);
-  if (reduceMotion) setState("paid");
-  else loop();
+  if (!reduceMotion) replay();
 })();

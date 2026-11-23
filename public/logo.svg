@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><clipPath id="sq"><rect x="10" y="10" width="28" height="28" rx="7"/></clipPath></defs>
-<rect width="64" height="64" rx="16" fill="#0E1630"/>
-<rect x="10" y="10" width="28" height="28" rx="7" fill="#F6F3EC"/>
-<circle cx="39" cy="39" r="15" fill="#FFB020"/>
-<circle cx="39" cy="39" r="15" fill="#2F5BFF" clip-path="url(#sq)"/></svg>
+<rect width="64" height="64" rx="16" fill="#19C37D"/>
+<rect x="10" y="10" width="28" height="28" rx="7" fill="#0B0C10"/>
+<circle cx="39" cy="39" r="15" fill="#F2F0EA"/>
+<circle cx="39" cy="39" r="15" fill="#19C37D" clip-path="url(#sq)"/></svg>
