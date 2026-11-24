@@ -215,7 +215,7 @@ function renderPayouts() {
     list.innerHTML = `
       <div class="empty">
         <strong>No payouts yet</strong>
-        <span>Post your first job, then send the freelancer their link.</span>
+        <span>Post your first job, then send the freelancer their link. Only you can see your payouts here, in this browser.</span>
         <button class="btn small" type="button" data-action="new">New payout</button>
       </div>`;
     list.querySelector("[data-action=new]").addEventListener("click", openDialog);

@@ -32,9 +32,30 @@ window.PP = (() => {
     return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
   }
 
-  async function api(url, opts) {
+  /* No accounts: this browser's random key marks the payouts it created, so the
+     dashboard only lists your own. Freelancer links and receipts still open anywhere. */
+  let memoryKey = null;
+  function clientKey() {
+    const make = () => {
+      const bytes = crypto.getRandomValues(new Uint8Array(24));
+      return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    };
     try {
-      const res = await fetch(url, opts);
+      let key = localStorage.getItem("proofpay.clientKey");
+      if (!key) {
+        key = make();
+        localStorage.setItem("proofpay.clientKey", key);
+      }
+      return key;
+    } catch {
+      return (memoryKey ||= make());
+    }
+  }
+
+  async function api(url, opts = {}) {
+    try {
+      const headers = { ...(opts.headers || {}), "x-proofpay-client": clientKey() };
+      const res = await fetch(url, { ...opts, headers });
       const data = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, data };
     } catch {

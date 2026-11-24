@@ -57,6 +57,8 @@ export interface PayoutTask {
   payoutMode: "APPROVAL_REQUIRED" | "AUTO_PAY_CAPPED";
   status: TaskStatus;
   createdAt: string;
+  /** SHA-256 of the creating browser's client key; only that browser's dashboard lists the payout. */
+  ownerKeyHash?: string;
   submission?: {
     deliverableUrl: string;
     deliverableNotes: string;

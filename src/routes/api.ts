@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { Router } from "express";
+import { Router, type Request } from "express";
 import {
   encodeFunctionData,
   erc20Abi,
@@ -61,6 +61,7 @@ import {
   recordHumanSpend,
   saveReceipt,
   updateTask,
+  type PayoutTask,
 } from "../services/store.js";
 
 export const apiRouter = Router();
@@ -164,8 +165,26 @@ apiRouter.get("/balance/:address", async (req, res) => {
   }
 });
 
-apiRouter.get("/tasks", (_req, res) => {
-  res.json({ tasks: listTasks().map(publicTask) });
+/**
+ * There are no accounts, so each browser keeps a random client key and sends it as
+ * x-proofpay-client. A payout remembers the hash of the key that created it, and the
+ * dashboard lists only the caller's own payouts and receipts. Single payouts and receipts
+ * stay readable by id, which is how freelancer links and public receipts work.
+ */
+function clientKeyHash(req: Request): string | null {
+  const key = req.header("x-proofpay-client");
+  if (!key || key.length < 20 || key.length > 200) return null;
+  return hashToken(key);
+}
+
+function ownedTasks(req: Request): PayoutTask[] {
+  const owner = clientKeyHash(req);
+  if (!owner) return [];
+  return listTasks().filter((t) => t.ownerKeyHash === owner);
+}
+
+apiRouter.get("/tasks", (req, res) => {
+  res.json({ tasks: ownedTasks(req).map(publicTask) });
 });
 
 apiRouter.get("/tasks/:id", (req, res) => {
@@ -268,9 +287,10 @@ apiRouter.post("/tasks", (req, res) => {
       payoutMode === "AUTO_PAY_CAPPED"
         ? "AUTO_PAY_CAPPED"
         : "APPROVAL_REQUIRED",
+    ownerKeyHash: clientKeyHash(req) ?? undefined,
   });
 
-  res.status(201).json({ task });
+  res.status(201).json({ task: publicTask(task) });
 });
 
 apiRouter.post("/tasks/:id/submit", async (req, res) => {
@@ -663,11 +683,12 @@ apiRouter.post("/tasks/:id/altana/revoked", (req, res) => {
   res.json({ task: publicTask(updated) });
 });
 
-/** Never send session secrets to the browser. */
-function publicTask<T extends { altana?: { sealedKey?: string; ownerTokenHash?: string } }>(task: T): T {
-  if (!task.altana) return task;
+/** Never send session secrets or the owner's key hash to the browser. */
+function publicTask<T extends { ownerKeyHash?: string; altana?: { sealedKey?: string; ownerTokenHash?: string } }>(task: T): T {
+  const { ownerKeyHash: _o, ...withoutOwner } = task;
+  if (!task.altana) return withoutOwner as T;
   const { sealedKey: _k, ownerTokenHash: _h, ...rest } = task.altana as Record<string, unknown>;
-  return { ...task, altana: rest } as T;
+  return { ...withoutOwner, altana: rest } as T;
 }
 
 apiRouter.post("/tasks/:id/approve", async (req, res) => {
@@ -1004,8 +1025,9 @@ apiRouter.post(
   }
 );
 
-apiRouter.get("/receipts", (_req, res) => {
-  res.json({ receipts: listReceipts() });
+apiRouter.get("/receipts", (req, res) => {
+  const mine = new Set(ownedTasks(req).map((t) => t.id));
+  res.json({ receipts: listReceipts().filter((r) => mine.has(r.taskId)) });
 });
 
 apiRouter.get("/receipts/:id", (req, res) => {
