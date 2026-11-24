@@ -264,6 +264,8 @@ function renderPayouts() {
   list.querySelectorAll("[data-approve]").forEach((btn) => btn.addEventListener("click", () => approve(btn.dataset.approve)));
   list.querySelectorAll("[data-fund]").forEach((btn) => btn.addEventListener("click", () => fundPayout(btn.dataset.fund)));
   list.querySelectorAll("[data-refund]").forEach((btn) => btn.addEventListener("click", () => refundPayout(btn.dataset.refund)));
+  list.querySelectorAll("[data-limit]").forEach((btn) => btn.addEventListener("click", () => openLimitSheet(btn.dataset.limit)));
+  list.querySelectorAll("[data-revoke]").forEach((btn) => btn.addEventListener("click", () => cancelLimit(btn.dataset.revoke)));
   list.querySelectorAll("[data-copy]").forEach((btn) => btn.addEventListener("click", () => copyText(btn.dataset.copy, btn)));
 }
 
@@ -296,6 +298,10 @@ function renderDetail(task, receipt, status) {
   const steps = [
     step(true, task.createdAt, "Payout created", `${usd(task.budgetUsd)} USD₮, paid out in ${esc(task.corridorCode)}`),
     ...(task.funding ? [step(true, task.funding.fundedAt, `Paid in by ${esc(shortAddr(task.funding.funder))}`, txLink(task.funding.txHash))] : []),
+    ...(task.altana
+      ? [step(true, task.altana.grantedAt, `Spending limit set on ${esc(shortAddr(task.altana.wallet))}`, task.altana.grantTxHash ? txLink(task.altana.grantTxHash) : "Altana wallet")]
+      : []),
+    ...(task.altana?.revokedAt ? [step(true, task.altana.revokedAt, "You cancelled the limit", task.altana.revokeTxHash ? txLink(task.altana.revokeTxHash) : "")] : []),
     sub
       ? step(true, sub.submittedAt, "Work handed in", `<a href="${esc(sub.deliverableUrl)}" target="_blank" rel="noopener">${esc(sub.deliverableUrl)}</a>`)
       : step(false, null, `Waiting for ${esc(task.freelancerName)} to hand in the work`, ""),
@@ -317,14 +323,23 @@ function renderDetail(task, receipt, status) {
   let actions = "";
   const busy = state.approving === task.id;
   const funded = task.funding && task.funding.status === "funded";
-  const canFund = !funded && task.status !== "PAID" && task.status !== "REFUNDED" && state.health?.executionMode === "mainnet";
+  const limited = task.altana && task.altana.status === "granted";
+  const closed = ["PAID", "REFUNDED", "CANCELLED"].includes(task.status);
+  const canFund = !funded && !limited && !closed && state.health?.executionMode === "mainnet";
   const fundBtn = canFund
-    ? `<button class="btn small" type="button" data-fund="${esc(task.id)}" ${busy ? "disabled" : ""}>${busy && state.busyLabel ? esc(state.busyLabel) : `Pay in ${usd(task.budgetUsd)} from your wallet`}</button>`
+    ? `<button class="btn small" type="button" data-fund="${esc(task.id)}" ${busy ? "disabled" : ""}>${busy && state.busyLabel ? esc(state.busyLabel) : `Pay in ${usd(task.budgetUsd)} from your wallet`}</button>
+       <button class="btn secondary small" type="button" data-limit="${esc(task.id)}" ${busy ? "disabled" : ""}>Keep it in my wallet instead</button>`
     : "";
   const refundBtn = funded && task.status !== "PAID"
     ? `<button class="btn secondary small" type="button" data-refund="${esc(task.id)}" ${busy ? "disabled" : ""}>Reject and refund</button>`
+    : limited && !closed
+    ? `<button class="btn secondary small" type="button" data-revoke="${esc(task.id)}" ${busy ? "disabled" : ""}>Reject and cancel the limit</button>`
     : "";
-  const heldNote = funded ? `<span class="hint">${usd(task.budgetUsd)} is held. It goes to ${esc(task.freelancerName)} only when you approve.</span>` : "";
+  const heldNote = funded
+    ? `<span class="hint">${usd(task.budgetUsd)} is held. It goes to ${esc(task.freelancerName)} only when you approve.</span>`
+    : limited
+    ? `<span class="hint">Your ${usd(task.budgetUsd)} stays in your Altana wallet until you approve. The limit ends ${esc(dateTime(new Date(task.altana.session.expiry * 1000).toISOString()))}.</span>`
+    : "";
 
   if (status.key === "waiting") {
     actions = `
@@ -339,9 +354,11 @@ function renderDetail(task, receipt, status) {
       ${canFund ? fundBtn : `<button class="btn paid small" type="button" data-approve="${esc(task.id)}" ${busy ? "disabled" : ""}>${label}</button>`}
       ${refundBtn}
       <a class="btn secondary small" href="/t/${esc(task.id)}" target="_blank" rel="noopener">Open their page</a>
-      <span class="hint">${canFund ? "Pay in first, then approve." : status.key === "flagged" ? "Some checks failed. Open the work before you pay." : `${esc(task.freelancerName)} gets about ${esc(est)} ${esc(task.corridorCode)}.`}</span>`;
+      <span class="hint">${canFund ? "Pay in, or keep the money in your wallet with a spending limit, then approve." : status.key === "flagged" ? "Some checks failed. Open the work before you pay." : `${esc(task.freelancerName)} gets about ${esc(est)} ${esc(task.corridorCode)}.`}</span>`;
   } else if (task.status === "REFUNDED") {
     actions = `<span class="hint">Refunded to ${esc(shortAddr(task.funding?.funder || ""))}. ${task.funding?.refundTxHash ? txLink(task.funding.refundTxHash) : ""}</span>`;
+  } else if (task.status === "CANCELLED") {
+    actions = `<span class="hint">You cancelled the spending limit. Nothing left your wallet.</span>`;
   } else if (receipt) {
     actions = `
       <a class="btn small" href="/receipt/${esc(receipt.id)}">View receipt</a>
@@ -484,10 +501,18 @@ async function approve(taskId) {
   const task = state.tasks.find((t) => t.id === taskId);
   if (!task || state.approving) return;
 
+  const limited = task.altana && task.altana.status === "granted";
+  const grant = limited ? savedLimit(taskId) : null;
+  if (limited && !grant) {
+    state.errors[taskId] = "Approve from the browser where you set the spending limit.";
+    renderPayouts();
+    return;
+  }
+
   if (state.health?.executionMode === "mainnet") {
     const est = estimateLocal(task.corridorCode, task.budgetUsd);
     const ok = window.confirm(
-      `Pay ${usd(task.budgetUsd)} USD₮ to ${task.freelancerName}?\n\nIt converts to about ${est} ${task.corridorCode} on Textile FX and goes to ${task.freelancerWallet} on Celo. This can't be undone.`
+      `Pay ${usd(task.budgetUsd)} USD₮ to ${task.freelancerName}?\n\n${limited ? "ProofPay takes it from your Altana wallet, converts it" : "It converts"} to about ${est} ${task.corridorCode} on Textile FX and goes to ${task.freelancerWallet} on Celo. This can't be undone.`
     );
     if (!ok) return;
   }
@@ -497,7 +522,10 @@ async function approve(taskId) {
   renderPayouts();
 
   let body = "{}";
-  if (task.funding && task.funding.status === "funded") {
+  const headers = { "Content-Type": "application/json" };
+  if (grant) {
+    headers["x-owner-token"] = grant.ownerToken;
+  } else if (task.funding && task.funding.status === "funded") {
     try {
       const signature = await signAs(task.funding.funder, `Approve ProofPay payout ${task.id}`);
       body = JSON.stringify({ signature });
@@ -512,7 +540,7 @@ async function approve(taskId) {
   const send = () =>
     api(`/api/tasks/${encodeURIComponent(taskId)}/approve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-operator-key": readOperatorKey() },
+      headers: { ...headers, "x-operator-key": readOperatorKey() },
       body,
     });
 
@@ -532,6 +560,187 @@ async function approve(taskId) {
   }
   await Promise.all([loadPayouts(), loadHealth()]);
 }
+
+/* ---------- Altana spending limit: the money stays in the client's wallet ---------- */
+const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
+const ATTRIBUTION_SUFFIX = "63656c6f5f333235643864333830363166110080218021802180218021802180218021";
+const FEE_HEADROOM_ATOMIC = 500000n; // $0.50 for Altana's network fee, paid in USD₮
+const REGISTRY_CELO = 9.3;
+const limitSheet = $("limit-sheet");
+const limitState = { taskId: null, wallet: null, balance: null };
+let altanaModule = null;
+
+function loadAltana() {
+  if (!altanaModule) altanaModule = import("/altana.js?v=1");
+  return altanaModule;
+}
+
+function savedLimit(taskId) {
+  try {
+    return JSON.parse(localStorage.getItem(`proofpay.altana.${taskId}`) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function limitNeedAtomic(task) {
+  return BigInt(Math.round(task.budgetUsd * 1e6)) + FEE_HEADROOM_ATOMIC;
+}
+
+function limitError(message) {
+  $("limit-error").textContent = message || "";
+  $("limit-error").hidden = !message;
+}
+
+function limitBusy(btn, label) {
+  if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+  btn.disabled = Boolean(label);
+  btn.textContent = label || btn.dataset.label;
+}
+
+function openLimitSheet(taskId) {
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task) return;
+  limitState.taskId = taskId;
+  limitState.wallet = null;
+  limitState.balance = null;
+  $("limit-amount").textContent = usd(task.budgetUsd);
+  $("limit-step-wallet").classList.remove("done");
+  $("limit-open-row").hidden = false;
+  $("limit-wallet").hidden = true;
+  $("limit-step-topup").hidden = true;
+  $("limit-step-grant").hidden = true;
+  $("limit-register").checked = false;
+  limitError("");
+  loadAltana().catch(() => limitError("Couldn't load Altana. Check your connection and try again."));
+  limitSheet.showModal();
+}
+
+async function refreshLimitBalance() {
+  const task = state.tasks.find((t) => t.id === limitState.taskId);
+  if (!task || !limitState.wallet) return;
+  const { ok, data } = await api(`/api/balance/${limitState.wallet.address}`);
+  if (!ok) {
+    limitError(data.error || "Couldn't read the wallet's balance.");
+    return;
+  }
+  limitState.balance = data;
+  $("limit-balance").textContent = `${usd(data.usdt)} USD₮ · ${num(data.celo, 2)} CELO`;
+  const need = limitNeedAtomic(task);
+  const have = BigInt(data.usdtAtomic);
+  const short = have < need;
+  $("limit-step-topup").hidden = !short;
+  $("limit-step-grant").hidden = short;
+  $("limit-grant-num").textContent = short ? "3" : "2";
+  if (short) {
+    $("limit-topup-text").textContent = `It holds ${usd(data.usdt)}. Add ${usd(Number(need - have) / 1e6)} USD₮ so it covers ${usd(task.budgetUsd)} plus Altana's small network fee. The money is still yours: only you can move it, apart from the limit you set next.`;
+  }
+}
+
+async function openLimitWallet(create) {
+  const btn = create ? $("limit-create") : $("limit-open");
+  limitError("");
+  limitBusy(btn, create ? "Creating…" : "Opening…");
+  try {
+    const mod = await loadAltana();
+    limitState.wallet = await mod.openWallet(create);
+    $("limit-address").textContent = limitState.wallet.address;
+    $("limit-open-row").hidden = true;
+    $("limit-wallet").hidden = false;
+    $("limit-step-wallet").classList.add("done");
+    await refreshLimitBalance();
+  } catch (err) {
+    const cancelled = err && (err.name === "NotAllowedError" || /cancel|not allowed/i.test(err.message || ""));
+    limitError(
+      cancelled
+        ? create
+          ? "Passkey cancelled. Nothing was created."
+          : "No wallet opened. If you haven't made one on this device yet, tap “First time? Create one”."
+        : (err && err.message) || "Couldn't open the wallet."
+    );
+  }
+  limitBusy(btn, null);
+}
+
+async function topUpLimitWallet() {
+  const task = state.tasks.find((t) => t.id === limitState.taskId);
+  if (!task || !limitState.wallet || !limitState.balance) return;
+  const btn = $("limit-topup");
+  limitError("");
+  limitBusy(btn, "Waiting for your wallet…");
+  try {
+    const amount = limitNeedAtomic(task) - BigInt(limitState.balance.usdtAtomic);
+    const data =
+      "0xa9059cbb" +
+      limitState.wallet.address.slice(2).toLowerCase().padStart(64, "0") +
+      amount.toString(16).padStart(64, "0") +
+      ATTRIBUTION_SUFFIX;
+    const from = await connectWallet();
+    await walletProvider().request({ method: "eth_sendTransaction", params: [{ from, to: USDT_ADDRESS, data, value: "0x0" }] });
+    limitBusy(btn, "Confirming on Celo…");
+    for (let i = 0; i < 10; i += 1) {
+      await new Promise((r) => setTimeout(r, 3000));
+      await refreshLimitBalance();
+      if ($("limit-step-topup").hidden) break;
+    }
+  } catch (err) {
+    limitError(walletError(err));
+  }
+  limitBusy(btn, null);
+}
+
+async function grantLimit() {
+  const task = state.tasks.find((t) => t.id === limitState.taskId);
+  if (!task || !limitState.wallet) return;
+  const register = $("limit-register").checked;
+  if (register && (limitState.balance?.celo || 0) < REGISTRY_CELO) {
+    limitError(`Listing in the registry needs about ${REGISTRY_CELO} CELO in the Altana wallet. Untick it, or add CELO first.`);
+    return;
+  }
+  const btn = $("limit-grant");
+  limitError("");
+  limitBusy(btn, "Confirm with your passkey…");
+  try {
+    const mod = await loadAltana();
+    await mod.grant({
+      taskId: task.id,
+      wallet: limitState.wallet,
+      budgetAtomic: limitNeedAtomic(task).toString(),
+      days: Number($("limit-days").value),
+      register,
+    });
+    limitSheet.close();
+    await loadPayouts();
+  } catch (err) {
+    limitError((err && err.message) || "Couldn't set the limit.");
+  }
+  limitBusy(btn, null);
+}
+
+async function cancelLimit(taskId) {
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task || state.approving) return;
+  if (!window.confirm(`Reject the work and cancel the spending limit? ${usd(task.budgetUsd)} stays in your wallet and ${task.freelancerName} isn't paid.`)) return;
+  state.approving = taskId;
+  delete state.errors[taskId];
+  renderPayouts();
+  try {
+    const mod = await loadAltana();
+    await mod.revoke(taskId);
+  } catch (err) {
+    state.errors[taskId] = (err && err.message) || "Couldn't cancel the limit.";
+  }
+  state.approving = null;
+  await loadPayouts();
+}
+
+$("limit-open").addEventListener("click", () => openLimitWallet(false));
+$("limit-create").addEventListener("click", () => openLimitWallet(true));
+$("limit-topup").addEventListener("click", topUpLimitWallet);
+$("limit-recheck").addEventListener("click", () => refreshLimitBalance());
+$("limit-copy").addEventListener("click", (e) => limitState.wallet && copyText(limitState.wallet.address, e.currentTarget));
+$("limit-grant").addEventListener("click", grantLimit);
+$("limit-close").addEventListener("click", () => limitSheet.close());
 
 /* ---------- New payout ---------- */
 const dialog = $("new-payout");

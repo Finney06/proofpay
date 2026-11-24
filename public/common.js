@@ -146,6 +146,7 @@ window.PP = (() => {
         : { key: "preview", label: "Approved, preview" };
     }
     if (task.status === "REFUNDED") return { key: "preview", label: "Refunded" };
+    if (task.status === "CANCELLED") return { key: "preview", label: "Cancelled" };
     if (task.status === "VETTED") {
       return task.aiReview && task.aiReview.verdict === "PASS"
         ? { key: "approve", label: "Ready to approve" }

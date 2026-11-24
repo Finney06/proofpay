@@ -11,7 +11,22 @@ export type TaskStatus =
   | "VETTED"
   | "PAID"
   | "REJECTED"
-  | "REFUNDED";
+  | "REFUNDED"
+  | "CANCELLED";
+
+/** A spending permission on the client's own Altana wallet (non-custodial). */
+export interface TaskAltana {
+  status: "granted" | "used" | "revoked";
+  wallet: string;
+  session: import("@altananetwork/sdk").SerializedSession;
+  sealedKey: string;
+  ownerTokenHash: string;
+  grantTxHash?: string | null;
+  grantedAt: string;
+  pullTxHash?: string;
+  revokeTxHash?: string;
+  revokedAt?: string;
+}
 
 /** The client's own USD₮, sent to ProofPay to hold until they approve or reject. */
 export interface TaskFunding {
@@ -45,6 +60,7 @@ export interface PayoutTask {
   };
   aiReview?: DeliverableReview;
   funding?: TaskFunding;
+  altana?: TaskAltana;
   approval?: {
     approvedBy: string;
     approvedAt: string;
@@ -90,6 +106,8 @@ export interface TrustReceipt {
   /** Set when the client funded the payout from their own wallet. */
   fundedBy?: string | null;
   fundingTxHash?: string | null;
+  /** How the money reached the agent: a deposit, or pulled under an Altana spending limit. */
+  fundingMethod?: "deposit" | "altana" | null;
   attributionTag: string;
 }
 

@@ -24,6 +24,7 @@ import {
   getAgentAddress,
   getAgentBalancesSnapshot,
   isLiveExecutionConfigured,
+  getTokenBalance,
   publicClient,
   transferLocalStablecoin,
 } from "../services/celoWallet.js";
@@ -33,6 +34,7 @@ import {
   previewTextileQuote,
 } from "../services/textileFx.js";
 import { vetDeliverable } from "../services/aiReviewer.js";
+import { checkSession, pullBudget, sealSessionKey } from "../services/altana.js";
 import {
   AUTO_PAY_MAX_USD,
   PER_HUMAN_DAILY_CAP_USD,
@@ -131,8 +133,26 @@ apiRouter.post("/quote", async (req, res) => {
   }
 });
 
+/** USD₮ and CELO balances of any Celo address (used by the Altana top-up step). */
+apiRouter.get("/balance/:address", async (req, res) => {
+  const address = req.params.address;
+  if (!isAddress(address)) {
+    res.status(400).json({ error: "Not a Celo address." });
+    return;
+  }
+  try {
+    const [usdt, celo] = await Promise.all([
+      getTokenBalance(FUNDING_TOKENS.USDT.address, address as Address),
+      publicClient.getBalance({ address: address as Address }),
+    ]);
+    res.json({ address, usdtAtomic: usdt.toString(), usdt: Number(usdt) / 1e6, celo: Number(celo) / 1e18 });
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : "Balance lookup failed" });
+  }
+});
+
 apiRouter.get("/tasks", (_req, res) => {
-  res.json({ tasks: listTasks() });
+  res.json({ tasks: listTasks().map(publicTask) });
 });
 
 apiRouter.get("/tasks/:id", (req, res) => {
@@ -141,7 +161,7 @@ apiRouter.get("/tasks/:id", (req, res) => {
     res.status(404).json({ error: "Task not found" });
     return;
   }
-  res.json({ task });
+  res.json({ task: publicTask(task) });
 });
 
 apiRouter.post("/tasks", (req, res) => {
@@ -282,7 +302,7 @@ apiRouter.post("/tasks/:id/submit", async (req, res) => {
     aiReview,
   }));
 
-  res.json({ task: updated, aiReview });
+  res.json({ task: publicTask(updated), aiReview });
 });
 
 /**
@@ -359,7 +379,7 @@ apiRouter.post("/tasks/:id/fund", async (req, res) => {
       return;
     }
     if (task.funding?.status === "funded") {
-      res.json({ task });
+      res.json({ task: publicTask(task) });
       return;
     }
     const agent = getAgentAddress();
@@ -405,7 +425,7 @@ apiRouter.post("/tasks/:id/fund", async (req, res) => {
         attributionVerified: tag,
       },
     }));
-    res.json({ task: updated });
+    res.json({ task: publicTask(updated) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Couldn't confirm the funding." });
   }
@@ -438,7 +458,7 @@ apiRouter.post("/tasks/:id/refund", async (req, res) => {
       status: "REFUNDED",
       funding: { ...current.funding!, status: "refunded", refundTxHash: refund.hash, refundedAt: new Date().toISOString() },
     }));
-    res.json({ task: updated });
+    res.json({ task: publicTask(updated) });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Refund failed" });
   }
@@ -454,6 +474,95 @@ async function verifyAttributedTxSafe(hash: Hash): Promise<boolean> {
   }
 }
 
+/* ---------- Altana: a spending permission on the client's own wallet ---------- */
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function ownsAltana(task: { altana?: { ownerTokenHash: string } }, provided: string | undefined): boolean {
+  if (!task.altana || !provided) return false;
+  const a = Buffer.from(hashToken(provided));
+  const b = Buffer.from(task.altana.ownerTokenHash);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/** Stores the session the client granted ProofPay. Returns a one-time owner token for approving later. */
+apiRouter.post("/tasks/:id/altana", (req, res) => {
+  try {
+    const task = getTask(req.params.id);
+    if (!task) {
+      res.status(404).json({ error: "Task not found" });
+      return;
+    }
+    if (task.status === "PAID" || task.status === "CANCELLED") {
+      res.status(409).json({ error: "This payout is closed." });
+      return;
+    }
+    if (task.funding?.status === "funded" || task.altana?.status === "granted") {
+      res.status(409).json({ error: "This payout already has its money arranged." });
+      return;
+    }
+    const { session, sessionKey, grantTxHash } = req.body as {
+      session?: import("@altananetwork/sdk").SerializedSession;
+      sessionKey?: string;
+      grantTxHash?: string;
+    };
+    if (!session || typeof sessionKey !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(sessionKey)) {
+      res.status(400).json({ error: "The Altana permission and its key are required." });
+      return;
+    }
+    const problem = checkSession(session, budgetAtomic(task.budgetUsd));
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+    const ownerToken = crypto.randomBytes(24).toString("base64url");
+    const updated = updateTask(task.id, (current) => ({
+      ...current,
+      altana: {
+        status: "granted",
+        wallet: session.walletAddress,
+        session,
+        sealedKey: sealSessionKey(sessionKey),
+        ownerTokenHash: hashToken(ownerToken),
+        grantTxHash: grantTxHash || null,
+        grantedAt: new Date().toISOString(),
+      },
+    }));
+    res.json({ task: publicTask(updated), ownerToken });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Couldn't save the permission." });
+  }
+});
+
+/** Records that the client revoked the permission (they sign the revoke in their own browser). */
+apiRouter.post("/tasks/:id/altana/revoked", (req, res) => {
+  const task = getTask(req.params.id);
+  if (!task || !task.altana) {
+    res.status(404).json({ error: "No Altana permission on this payout." });
+    return;
+  }
+  if (!ownsAltana(task, req.get("x-owner-token"))) {
+    res.status(401).json({ error: "Only the client who granted the permission can do this." });
+    return;
+  }
+  const { txHash } = req.body as { txHash?: string };
+  const updated = updateTask(task.id, (current) => ({
+    ...current,
+    status: current.status === "PAID" ? current.status : "CANCELLED",
+    altana: { ...current.altana!, status: "revoked", revokeTxHash: txHash || undefined, revokedAt: new Date().toISOString() },
+  }));
+  res.json({ task: publicTask(updated) });
+});
+
+/** Never send session secrets to the browser. */
+function publicTask<T extends { altana?: { sealedKey?: string; ownerTokenHash?: string } }>(task: T): T {
+  if (!task.altana) return task;
+  const { sealedKey: _k, ownerTokenHash: _h, ...rest } = task.altana as Record<string, unknown>;
+  return { ...task, altana: rest } as T;
+}
+
 apiRouter.post("/tasks/:id/approve", async (req, res) => {
   try {
     const task = getTask(req.params.id);
@@ -465,7 +574,16 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
     // A client-funded payout is released by the wallet that funded it.
     // Anything else spends the agent wallet's own USD₮, so only the operator may release it.
     const funded = task.funding?.status === "funded";
-    if (funded) {
+    const viaAltana = task.altana?.status === "granted";
+    if (viaAltana) {
+      if (!ownsAltana(task, req.get("x-owner-token"))) {
+        res.status(401).json({
+          error: "OWNER_TOKEN_REQUIRED",
+          message: "Approve from the browser where you granted the Altana permission.",
+        });
+        return;
+      }
+    } else if (funded) {
       const ok = await signedByFunder(task.funding!.funder, approveMessage(task.id), (req.body || {}).signature);
       if (!ok) {
         res.status(401).json({
@@ -501,7 +619,9 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
 
     const approvedBy = task.businessName;
     // Approvals are capped per client per day (per funding wallet when the client funded it).
-    const capKey = funded
+    const capKey = viaAltana
+      ? `client:${task.altana!.wallet.toLowerCase()}`
+      : funded
       ? `client:${task.funding!.funder.toLowerCase()}`
       : `client:${task.businessName.trim().toLowerCase()}`;
 
@@ -519,6 +639,26 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
         capCheck,
       });
       return;
+    }
+
+    // Altana: pull exactly the budget from the client's wallet with the session, then convert.
+    let altanaPullTx: string | null = null;
+    if (viaAltana) {
+      const agent = getAgentAddress();
+      if (!agent) {
+        res.status(409).json({ error: "This server has no agent wallet to receive the budget." });
+        return;
+      }
+      altanaPullTx = await pullBudget({
+        session: task.altana!.session,
+        sealedKey: task.altana!.sealedKey,
+        to: agent,
+        amount: budgetAtomic(task.budgetUsd),
+      });
+      updateTask(task.id, (current) => ({
+        ...current,
+        altana: { ...current.altana!, status: "used", pullTxHash: altanaPullTx! },
+      }));
     }
 
     const payout = await executeTextileSwapAndPayout({
@@ -557,8 +697,9 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
       reviewEngine: task.aiReview.engine,
       payout,
       x402TxHash: null,
-      fundedBy: funded ? task.funding!.funder : null,
-      fundingTxHash: funded ? task.funding!.txHash : null,
+      fundedBy: viaAltana ? task.altana!.wallet : funded ? task.funding!.funder : null,
+      fundingTxHash: viaAltana ? altanaPullTx : funded ? task.funding!.txHash : null,
+      fundingMethod: viaAltana ? "altana" : funded ? "deposit" : null,
       attributionTag: ATTRIBUTION_TAG,
     });
 
@@ -573,7 +714,7 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
     }));
 
     res.json({
-      task: updatedTask,
+      task: publicTask(updatedTask),
       receipt,
       receiptUrl: `/receipt/${receipt.id}`,
     });

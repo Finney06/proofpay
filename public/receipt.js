@@ -56,7 +56,10 @@ async function init() {
 
   const onchain = [];
   if (live) {
-    if (r.fundingTxHash) onchain.push(row(`Paid in by ${window.PP.shortAddr(r.fundedBy || "")}`, txLink(r.fundingTxHash)));
+    if (r.fundingTxHash) {
+      const who = window.PP.shortAddr(r.fundedBy || "");
+      onchain.push(row(r.fundingMethod === "altana" ? `Taken under the client's Altana limit from ${who}` : `Paid in by ${who}`, txLink(r.fundingTxHash)));
+    }
     if (p.approvalTxHash) onchain.push(row("USD₮ approval", txLink(p.approvalTxHash)));
     onchain.push(row("Textile FX conversion", txLink(p.swapTxHash)));
     onchain.push(row(`${p.buyToken} to freelancer`, txLink(p.payoutTxHash)));

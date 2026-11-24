@@ -195,7 +195,56 @@ X-PAYMENT: &lt;x402 payment&gt;
     </form>
   </dialog>
 
-  <script src="/common.js?v=13"></script>
-  <script src="/app.js?v=13"></script>
+  <dialog class="sheet" id="limit-sheet" aria-labelledby="limit-title">
+    <div class="sheet-head">
+      <h2 id="limit-title">Keep the money in your wallet</h2>
+    </div>
+    <div class="sheet-body">
+      <p>Instead of paying in now, give ProofPay a spending limit on your own <strong>Altana</strong> wallet. ProofPay can take <strong id="limit-amount">$0</strong> for this payout, and only after you approve the work. You can cancel any time before that.</p>
+      <ol class="limit-steps">
+        <li id="limit-step-wallet">
+          <div class="ls-head"><span class="ls-num">1</span><strong>Open your wallet</strong></div>
+          <p class="small muted">Uses your phone or laptop's fingerprint, face or PIN. No seed phrase.</p>
+          <div class="ls-actions" id="limit-open-row">
+            <button class="btn small" type="button" id="limit-open">Open with passkey</button>
+            <button class="link-btn" type="button" id="limit-create">First time? Create one</button>
+          </div>
+          <div class="ls-wallet" id="limit-wallet" hidden>
+            <code id="limit-address"></code>
+            <span class="small" id="limit-balance"></span>
+          </div>
+        </li>
+        <li id="limit-step-topup" hidden>
+          <div class="ls-head"><span class="ls-num">2</span><strong>Put the money in it</strong></div>
+          <p class="small muted" id="limit-topup-text"></p>
+          <div class="ls-actions">
+            <button class="btn small" type="button" id="limit-topup">Send from my Celo wallet</button>
+            <button class="btn secondary small" type="button" id="limit-copy">Copy address</button>
+            <button class="link-btn" type="button" id="limit-recheck">I've sent it, check again</button>
+          </div>
+        </li>
+        <li id="limit-step-grant" hidden>
+          <div class="ls-head"><span class="ls-num" id="limit-grant-num">2</span><strong>Set the limit</strong></div>
+          <div class="field">
+            <label for="limit-days">Limit lasts</label>
+            <select class="select" id="limit-days">
+              <option value="7">7 days</option>
+              <option value="14" selected>14 days</option>
+              <option value="30">30 days</option>
+            </select>
+          </div>
+          <label class="check-row"><input type="checkbox" id="limit-register" /> <span>Also list it in Celo's public key registry <small class="muted">(costs about 9.2 CELO; anyone can then read the limit onchain)</small></span></label>
+          <button class="btn paid small" type="button" id="limit-grant">Set the limit</button>
+        </li>
+      </ol>
+      <p class="form-error" id="limit-error" hidden></p>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn quiet" type="button" id="limit-close">Close</button>
+    </div>
+  </dialog>
+
+  <script src="/common.js?v=14"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>

@@ -12,8 +12,14 @@ Nigerian freelancers paid by remote clients usually lose money and days between 
 
 1. **Create a payout.** The client sets a brief, an acceptance checklist, a budget in USD₮ and the freelancer's Celo wallet. The wallet can't be ProofPay's own agent wallet.
 2. **Freelancer delivers.** They open `/t/<payoutId>`, see what they'll receive in naira, and submit a link plus notes.
-3. **ProofPay checks it.** It opens the link, fingerprints the delivery (SHA-256) and checks each checklist line. The current reviewer is rule-based (`src/services/aiReviewer.ts`); its result is labelled as such everywhere it appears.
+3. **ProofPay checks it.** It opens the link, fingerprints the delivery (SHA-256), and with `GEMINI_API_KEY` set, Gemini reads the delivered page, image or PDF and judges each checklist line. Without a key, or when the link is private, a rule-based check runs instead. The receipt names which one ran (`src/services/aiReviewer.ts`).
 4. **Client approves.** ProofPay requests a firm Textile FX RFQ quote, approves USD₮ to the reactor, broadcasts the swap, then transfers exactly the cNGN the swap delivered to the freelancer. Each step's transaction is on the receipt at `/receipt/<id>`.
+
+### Where the client's money comes from
+
+- **Pay in from a wallet.** The client sends the budget in USD₮ to the agent from MiniPay, Valora or any browser wallet (`GET /api/tasks/:id/funding` builds the tagged transfer; `POST /api/tasks/:id/fund` checks the Transfer log). Approving needs that wallet's signature; rejecting sends the USD₮ back (`POST /api/tasks/:id/refund`).
+- **Keep it in an Altana wallet.** The client opens a passkey Altana wallet and grants ProofPay a session key that can call only USD₮, with a spend cap of the budget plus $0.50 for fees, until an expiry they pick. Nothing moves until they approve; ProofPay then pulls exactly the budget with `execute` and converts it. Rejecting revokes the session onchain. See **Altana** below.
+- **Operator.** Unfunded payouts can only be released with `OPERATOR_KEY`.
 
 ## Tracks
 
@@ -27,6 +33,12 @@ Nigerian freelancers paid by remote clients usually lose money and days between 
 - `src/services/selfGate.ts`: requests without an `x-self-agent-signature` get HTTP 403 before any quote. Signed requests are verified by `SelfAgentVerifier` from `@selfxyz/agent-sdk` on Celo mainnet, over the raw request body.
 - The daily limit is keyed to the human's nullifier, so a second agent run by the same person shares the first one's limit (HTTP 429).
 - Verified requests then pay a 0.01 USD₮ fee over x402 through `https://api.x402.celo.org` (`src/services/x402Service.ts`).
+
+**Altana Agent Wallets.** The client keeps custody; ProofPay acts under a session the chain enforces.
+
+- Browser (`public/altana.js`, loaded on demand from the SDK's ESM bundle): `createPasskeyWallet` / `recoverFromPasskey`, `grantSession` with `permissions.calls` = USD₮ only, `permissions.spend` = budget + fee headroom per month, `feeToken` USD₮, and `appCode` set to the attribution tag. `register: true` also lists the key in the KeyStore (about 9.2 CELO); the default skips that.
+- Server (`src/services/altana.ts`): `checkSession` rejects a session that expires within 10 minutes, can't call USD₮, or caps below the budget. The session key is stored AES-256-GCM encrypted; the client gets a one-time owner token (only its hash is stored) that approving and revoking require.
+- On approval, `pullBudget` runs `execute` with the session to transfer the budget to the agent, then the normal Textile FX payout runs. The receipt shows the pull transaction as "Taken under the client's Altana limit".
 
 ## Attribution
 
@@ -43,7 +55,7 @@ npm run test:e2e      # live Textile rates and RFQ preview, delivery review, per
 npm run dev           # landing page at http://localhost:3000, the app at /app
 ```
 
-Without `AGENT_PRIVATE_KEY` the server runs in **preview mode**: rates and quotes are live from Textile FX, but approving a payout broadcasts nothing, and the UI and receipt say so. Set the key (a dedicated wallet holding USD₮ and a little CELO for gas) to pay out on mainnet. On mainnet, approvals also need `OPERATOR_KEY`, because they spend the agent wallet's own USD₮; without it the server refuses every approval.
+Without `AGENT_PRIVATE_KEY` the server runs in **preview mode**: rates and quotes are live from Textile FX, but approving a payout broadcasts nothing, and the UI and receipt say so. Set the key (a dedicated wallet holding USD₮ and a little CELO for gas) to pay out on mainnet. On mainnet, a payout the client paid into is approved with their wallet signature, and one under an Altana limit with their owner token; anything else needs `OPERATOR_KEY`, because it would spend the agent wallet's own USD₮.
 
 ### Register the agent (ERC-8004)
 
@@ -63,7 +75,9 @@ The registration file is served at `/registration.json` and `/.well-known/agent.
 | Textile FX RFQ client and payout | `src/services/textileFx.ts` |
 | Self Agent ID gate, per-human limit | `src/services/selfGate.ts` |
 | x402 verify and settle | `src/services/x402Service.ts` |
-| Delivery review and fingerprint | `src/services/aiReviewer.ts` |
+| Delivery review (Gemini or rule-based) and fingerprint | `src/services/aiReviewer.ts` |
+| Altana session checks, encrypted key, budget pull | `src/services/altana.ts` |
+| Storage (Postgres via `DATABASE_URL`, else a JSON file) | `src/services/store.ts` |
 | API routes | `src/routes/api.ts` |
 | Landing page (`/`), app (`/app`), freelancer page (`/t/:id`), receipt (`/receipt/:id`) | `public/` |
 

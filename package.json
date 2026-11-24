@@ -11,6 +11,7 @@
     "register:erc8004": "tsx scripts/register-erc8004.ts"
   },
   "dependencies": {
+    "@altananetwork/sdk": "^1.2.0",
     "@celo/attribution-tags": "^0.5.0",
     "@selfxyz/agent-sdk": "latest",
     "cors": "^2.8.5",
