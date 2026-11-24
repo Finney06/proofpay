@@ -10,8 +10,8 @@
     "test:e2e": "tsx scripts/verify-e2e.ts",
     "register:erc8004": "tsx scripts/register-erc8004.ts",
     "compile:contracts": "tsx scripts/compile-contracts.ts",
-    "test:escrow": "tsx scripts/test-escrow.ts",
-    "test:escrow-server": "tsx scripts/test-escrow-server.ts",
+    "test:escrow": "npm i --no-save ganache@7.9.2 && tsx scripts/test-escrow.ts",
+    "test:escrow-server": "npm i --no-save ganache@7.9.2 && npm run build && tsx scripts/test-escrow-server.ts",
     "deploy:escrow": "tsx scripts/deploy-escrow.ts"
   },
   "dependencies": {
@@ -30,7 +30,6 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.23.1",
-    "ganache": "^7.9.2",
     "solc": "^0.8.28",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

@@ -61,8 +61,8 @@ Without `AGENT_PRIVATE_KEY` the server runs in **preview mode**: rates and quote
 
 ```bash
 npm run compile:contracts     # solc 0.8.28 + OpenZeppelin SafeERC20 / ReentrancyGuard
-npm run test:escrow           # 11 contract checks on a local chain (ganache)
-npm run build && npm run test:escrow-server   # the real server against the local chain
+npm run test:escrow           # 11 contract checks on a local chain (installs ganache locally, not saved)
+npm run test:escrow-server   # the real server against the local chain (installs ganache locally, not saved)
 npm run deploy:escrow         # Celo mainnet, from the agent wallet; then set ESCROW_ADDRESS
 ```
 
