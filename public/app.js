@@ -402,7 +402,7 @@ function saveOperatorKey(key) {
   }
 }
 
-/* ---------- Client wallet: MiniPay, Valora or any browser wallet ---------- */
+/* ---------- Client wallet: MetaMask, MiniPay or any Celo browser wallet ---------- */
 const CELO_CHAIN_HEX = "0xa4ec";
 
 function walletProvider() {
@@ -412,7 +412,7 @@ function walletProvider() {
 async function connectWallet() {
   const eth = walletProvider();
   if (!eth) {
-    throw new Error("Open this page in MiniPay, Valora or MetaMask's browser to pay from your wallet.");
+    throw new Error("Open this page in MetaMask's browser (or another Celo wallet that holds USD₮) to pay from your wallet.");
   }
   const [account] = await eth.request({ method: "eth_requestAccounts" });
   const chainId = await eth.request({ method: "eth_chainId" });

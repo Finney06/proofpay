@@ -819,3 +819,9 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.7); }
 .check-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); cursor: pointer; }
 .check-row input { margin-top: 3px; accent-color: var(--green); }
 .limit-note { display: block; }
+
+/* Freelancer page: how to see the paid token */
+.token-tip { margin-top: 10px; font-size: 14px; color: var(--muted); }
+.token-tip summary { cursor: pointer; color: var(--ink-2); font-weight: 600; }
+.token-tip p { margin: 8px 0 0; }
+.token-tip .mono { overflow-wrap: anywhere; color: var(--ink); }

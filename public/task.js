@@ -83,8 +83,25 @@ function render(task, receipt) {
       <div class="state${live ? " ok" : ""}"><span class="mark">${live ? ICON.check : ICON.dot}</span><div>
         <strong>${live ? `Paid. ${sym}${esc(receipt.payout.buyAmountFormatted)} ${esc(receipt.payout.buyToken)} is in your wallet.` : "Approved in preview mode. No money was sent."}</strong>
         <p><a href="/receipt/${esc(receipt.id)}">View the receipt</a></p>
+        ${live ? tokenTip(receipt.payout.buyToken) : ""}
       </div></div>`;
+    if (live) loadTokenAddress(receipt.payout.buyToken);
   }
+}
+
+/* Most wallets don't list local stablecoins by default, so show how to add it once. */
+function tokenTip(code) {
+  return `<details class="token-tip"><summary>Can't see your ${esc(code)}?</summary>
+    <p>Wallets only show tokens you've added. In MetaMask: switch to the <strong>Celo</strong> network, tap <strong>Import tokens</strong>, and paste this address:</p>
+    <p class="mono" id="token-address">Loading…</p></details>`;
+}
+
+async function loadTokenAddress(code) {
+  const { ok, data } = await api("/api/corridors");
+  const el = $("token-address");
+  if (!el) return;
+  const c = ok && data.corridors.find((x) => x.code === code);
+  el.textContent = c ? c.tokenAddress : "See the receipt for the token.";
 }
 
 $("submit-form").addEventListener("submit", async (e) => {

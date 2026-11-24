@@ -6,7 +6,7 @@ Built for [Agents Open for Business](https://www.loops.house/agents-open-for-bus
 
 ## Why
 
-Nigerian freelancers paid by remote clients usually lose money and days between the dollar invoice and naira in their account: platform fees, slow transfers and the gap between the official and the street rate. ProofPay pays straight into a cNGN wallet (MiniPay, Valora or any Celo wallet) at the rate Textile FX makers quote at that moment, and only after the client has seen the work.
+Nigerian freelancers paid by remote clients usually lose money and days between the dollar invoice and naira in their account: platform fees, slow transfers and the gap between the official and the street rate. ProofPay pays straight into the freelancer's own Celo wallet in cNGN (MetaMask shows it once cNGN is imported as a token) at the rate Textile FX makers quote at that moment, and only after the client has seen the work.
 
 ## How a payout works
 
@@ -17,7 +17,7 @@ Nigerian freelancers paid by remote clients usually lose money and days between 
 
 ### Where the client's money comes from
 
-- **Pay in from a wallet.** The client sends the budget in USD₮ to the agent from MiniPay, Valora or any browser wallet (`GET /api/tasks/:id/funding` builds the tagged transfer; `POST /api/tasks/:id/fund` checks the Transfer log). Approving needs that wallet's signature; rejecting sends the USD₮ back (`POST /api/tasks/:id/refund`).
+- **Pay in from a wallet.** The client sends the budget in USD₮ to the agent from MetaMask or any Celo browser wallet that holds USD₮ (`GET /api/tasks/:id/funding` builds the tagged transfer; `POST /api/tasks/:id/fund` checks the Transfer log). Approving needs that wallet's signature; rejecting sends the USD₮ back (`POST /api/tasks/:id/refund`).
 - **Keep it in an Altana wallet.** The client opens a passkey Altana wallet and grants ProofPay a session key that can call only USD₮, with a spend cap of the budget plus $0.50 for fees, until an expiry they pick. Nothing moves until they approve; ProofPay then pulls exactly the budget with `execute` and converts it. Rejecting revokes the session onchain. See **Altana** below.
 - **Operator.** Unfunded payouts can only be released with `OPERATOR_KEY`.
 
