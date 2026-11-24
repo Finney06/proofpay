@@ -241,29 +241,59 @@ async function reviewWithGemini(params: {
     parts.push({ inline_data: { mime_type: content.mimeType, data: content.base64 } });
   }
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts }],
-          generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
-        }),
-        signal: AbortSignal.timeout(45_000),
+  // Gemini models are often briefly overloaded (503). Try the configured model, then lighter fallbacks,
+  // inside one overall time budget, before giving up and letting the rule-based check run.
+  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS || "gemini-3.6-flash,gemini-3.5-flash-lite,gemini-flash-lite-latest,gemini-3.7-flash")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const unique = [...new Set([model, ...fallbacks])];
+  const models = [...unique, ...unique];   // two passes: overload spikes are usually a few seconds long
+  const deadline = Date.now() + 75_000;
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+  });
+
+  for (const [i, tryModel] of models.entries()) {
+    const left = deadline - Date.now();
+    if (left < 5_000) break;
+    if (i > 0) await new Promise((r) => setTimeout(r, i === unique.length ? 2_500 : 600));
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryModel)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
+          body,
+          signal: AbortSignal.timeout(Math.min(30_000, left)),
+        }
+      );
+      if (!res.ok) {
+        const busy = [429, 500, 502, 503, 504].includes(res.status) || res.status === 404;
+        console.error(`Gemini review failed (${tryModel}):`, res.status, (await res.text()).slice(0, 200));
+        if (busy) continue;   // overloaded or retired: try the next model
+        return null;          // bad key or bad request: no point trying others
       }
-    );
-    if (!res.ok) {
-      console.error("Gemini review failed:", res.status, (await res.text()).slice(0, 300));
-      return null;
+      const judged = parseGemini(await res.json(), params.checklist);
+      if (judged) return { ...judged, model: tryModel };
+    } catch (err) {
+      console.error(`Gemini review error (${tryModel}):`, err instanceof Error ? err.message : err);
     }
-    const body = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
+  }
+  return null;
+}
+
+function parseGemini(
+  json: unknown,
+  checklist: string[]
+): { checks: ChecklistEvaluation[]; summary: string } | null {
+  try {
+    const body = json as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const raw = body.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") || "";
     const parsed = JSON.parse(raw) as { summary?: string; checks?: { item?: string; passed?: boolean; note?: string }[] };
     if (!Array.isArray(parsed.checks) || parsed.checks.length === 0) return null;
+    const params = { checklist };
 
     // Keep the client's own wording and order; fill anything the model skipped as not checked.
     const byItem = new Map(parsed.checks.map((c) => [String(c.item || "").trim().toLowerCase(), c]));
@@ -275,9 +305,9 @@ async function reviewWithGemini(params: {
         note: String(hit?.note || "Not assessed; check it yourself before approving").slice(0, 160),
       };
     });
-    return { checks, summary: String(parsed.summary || "").slice(0, 300), model };
+    return { checks, summary: String(parsed.summary || "").slice(0, 300) };
   } catch (err) {
-    console.error("Gemini review error:", err instanceof Error ? err.message : err);
+    console.error("Gemini reply was not usable JSON:", err instanceof Error ? err.message : err);
     return null;
   }
 }
