@@ -29,9 +29,15 @@ app.use(
 );
 
 // ERC-8004 Agent Registration Manifest
+/** PUBLIC_BASE_URL with a scheme and without a trailing slash. */
+function publicBaseUrl(): string {
+  const raw = (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  if (!raw) return `http://localhost:${PORT}`;
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
 function buildRegistrationManifest() {
-  const baseUrl =
-    process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+  const baseUrl = publicBaseUrl();
   return {
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name: "ProofPay",
