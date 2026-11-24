@@ -217,7 +217,7 @@ async function reviewWithGemini(params: {
   notes: string;
   url: string;
 }): Promise<{ checks: ChecklistEvaluation[]; summary: string; model: string } | null> {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
   const content = await fetchDelivery(params.url);
 
   const instructions = [

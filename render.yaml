@@ -43,7 +43,7 @@ services:
       - key: ESCROW_ADDRESS
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash
       # Free Postgres from neon.tech (paste its connection string in the Render dashboard).
       - key: DATABASE_URL
         sync: false
