@@ -653,7 +653,16 @@ if (/^#tsk_[a-z0-9]+$/i.test(location.hash)) {
 
 loadHealth();
 loadCorridors().then(() => {
-  if (location.hash === "#new") openDialog();
+  if (location.hash !== "#new") return;
+  openDialog();
+  const params = new URLSearchParams(location.search);
+  const usdParam = Number(params.get("usd"));
+  if (params.get("cur") && corridor(params.get("cur"))) $("corridorCode").value = params.get("cur");
+  if (Number.isFinite(usdParam) && usdParam > 0) {
+    setPriceUnit("usd");
+    $("budgetUsd").value = String(usdParam);
+  }
+  updateEstimate();
 });
 loadPayouts();
 

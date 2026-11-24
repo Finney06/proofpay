@@ -55,65 +55,33 @@
     }
     corridors = data.corridors || [];
     renderCalc();
+    heroQuote();
   }
 
   $("rc-amount").addEventListener("input", renderCalc);
 
-  // ---------- hero: client approves, ProofPay checks, freelancer is paid ----------
-  const flow = $("flow");
-  const btn = $("flow-btn");
-  const total = $("flow-total");
-  const wallet = $("flow-wallet");
-  const checks = [...$("flow-check").querySelectorAll("li")];
-
-  function countUp(ms) {
-    const t0 = performance.now();
-    return new Promise((resolve) => {
-      const step = (now) => {
-        const t = Math.min(1, (now - t0) / ms);
-        total.textContent = `₦${num(live.total * (1 - Math.pow(1 - t, 3)))}`;
-        if (t < 1) requestAnimationFrame(step);
-        else resolve();
-      };
-      requestAnimationFrame(step);
-    });
-  }
-
-  function showPaid() {
-    checks.forEach((li) => li.classList.add("ok"));
-    btn.textContent = "Approved";
-    btn.classList.add("done");
-    wallet.classList.remove("waiting");
-  }
-
-  async function replay() {
-    for (;;) {
-      checks.forEach((li) => li.classList.remove("ok"));
-      btn.className = "party-btn";
-      btn.textContent = "Approve and pay";
-      wallet.classList.add("waiting");
-      total.textContent = "₦0.00";
-      flow.classList.remove("moving");
-      await sleep(900);
-      for (const li of checks) {
-        li.classList.add("ok");
-        await sleep(520);
-      }
-      await sleep(500);
-      btn.classList.add("pressed");
-      await sleep(180);
-      btn.classList.remove("pressed");
-      btn.textContent = "Converting on Textile FX…";
-      flow.classList.add("moving");
-      await sleep(1100);
-      btn.textContent = "Approved";
-      btn.classList.add("done");
-      wallet.classList.remove("waiting");
-      await countUp(900);
-      flow.classList.remove("moving");
-      await sleep(4400);
+  // ---------- hero: payout calculator ----------
+  function heroQuote() {
+    const amount = Number($("qc-amount").value);
+    const c = corridors.find((x) => x.code === $("qc-code").value);
+    if (!c) return;
+    $("qc-rate").textContent = `${c.fiatSymbol}${num(c.rate, c.rate >= 100 ? 2 : 4)}`;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      $("qc-out").textContent = "–";
+      return;
     }
+    const out = amount * c.rate;
+    $("qc-out").textContent = `${c.fiatSymbol}${num(out, out >= 1000 ? 0 : 2)}`;
   }
+
+  $("qc-amount").addEventListener("input", heroQuote);
+  $("qc-code").addEventListener("change", heroQuote);
+  $("quote-card").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const amount = Number($("qc-amount").value);
+    const q = new URLSearchParams({ usd: Number.isFinite(amount) && amount > 0 ? String(amount) : "", cur: $("qc-code").value });
+    location.href = `/app?${q}#new`;
+  });
 
   // ---------- nav ----------
   const nav = document.querySelector(".site-nav");
@@ -128,6 +96,4 @@
   loadQuote();
   loadRates();
   setInterval(loadRates, 60000);
-  if (reduceMotion) showPaid();
-  else replay();
 })();

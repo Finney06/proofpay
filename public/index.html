@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css?v=12" />
+  <link rel="stylesheet" href="/styles.css?v=13" />
 </head>
 <body>
   <header class="site-nav">
@@ -53,49 +53,45 @@
             <a class="btn btn-primary btn-lg" href="/app#new">Create a payout</a>
             <a class="btn btn-secondary btn-lg" href="#how">How it works</a>
           </div>
-          <dl class="hero-stats">
-            <div><dt>Live rate</dt><dd><span class="js-rate">₦1,455.06</span><small>per $1</small></dd></div>
-            <div><dt>Approval to wallet</dt><dd>3<small>seconds</small></dd></div>
-            <div><dt>Conversion fee</dt><dd>0.02<small>%</small></dd></div>
-          </dl>
         </div>
 
-        <!-- Client approves, ProofPay checks and converts, freelancer is paid. Replayed by home.js. -->
-        <div class="flow" id="flow" aria-label="Example: a client pays a freelancer through ProofPay">
-          <svg class="flow-line" viewBox="0 0 400 520" preserveAspectRatio="none" aria-hidden="true">
-            <path id="flow-path" d="M110 168 C 110 260, 290 250, 290 352" />
-          </svg>
+        <!-- A working payout calculator: the product itself, not a picture of it -->
+        <form class="quote-card" id="quote-card" action="/app" aria-label="Payout calculator">
+          <label class="qc-field" for="qc-amount">
+            <span class="qc-label">You pay</span>
+            <span class="qc-input">
+              <input id="qc-amount" type="number" inputmode="decimal" min="1" max="5000" step="any" value="50" aria-label="Amount you pay in USD₮" />
+              <span class="qc-cur"><span class="flag usd" aria-hidden="true">$</span>USD₮</span>
+            </span>
+          </label>
 
-          <article class="party client">
-            <header>
-              <span class="avatar">LB</span>
-              <div><b>Lagos Brand Studio</b><small>Client · pays in USD₮</small></div>
-            </header>
-            <p class="party-job">Logo refresh · 3 PNG exports</p>
-            <div class="party-row"><span>Agreed price</span><b>$5.00</b></div>
-            <span class="party-btn" id="flow-btn">Approve and pay</span>
-          </article>
+          <ol class="qc-rail">
+            <li><span class="qc-dot"></span><span>Conversion fee</span><b id="qc-fee">0.02%</b></li>
+            <li><span class="qc-dot"></span><span>Live rate · Textile FX</span><b id="qc-rate">₦1,455.36</b></li>
+            <li class="proof"><span class="qc-dot"></span><span>Held until you approve the work</span><b>Checked first</b></li>
+          </ol>
 
-          <div class="check" id="flow-check">
-            <p class="check-title">ProofPay check</p>
-            <ul>
-              <li>Link opens</li>
-              <li>PNG at 512 and 1024px</li>
-              <li>Transparent background</li>
-            </ul>
-            <p class="check-rate">Textile FX · <span class="js-rate">₦1,455.06</span> / $1</p>
-          </div>
+          <label class="qc-field" for="qc-out">
+            <span class="qc-label">Your freelancer gets</span>
+            <span class="qc-input">
+              <output id="qc-out">₦72,768</output>
+              <span class="qc-cur select">
+                <select id="qc-code" aria-label="Currency your freelancer receives">
+                  <option value="cNGN" selected>cNGN</option>
+                  <option value="wBRL">wBRL</option>
+                  <option value="IDRX">IDRX</option>
+                  <option value="wARS">wARS</option>
+                  <option value="wMXN">wMXN</option>
+                  <option value="wCOP">wCOP</option>
+                </select>
+              </span>
+            </span>
+          </label>
 
-          <article class="party freelancer" id="flow-wallet">
-            <header>
-              <span class="avatar alt">TA</span>
-              <div><b>Tunde Adebayo</b><small>Freelancer · MiniPay</small></div>
-            </header>
-            <p class="party-label">Received</p>
-            <p class="party-amount">+<span class="js-total" id="flow-total">₦7,275.32</span></p>
-            <p class="party-meta"><span>cNGN</span><span id="flow-time">3 s after approval</span></p>
-          </article>
-        </div>
+          <p class="qc-eta"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.8V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Lands in their wallet about <b>3 seconds</b> after you approve</span></p>
+
+          <button class="btn btn-primary btn-lg qc-cta" type="submit">Create this payout</button>
+        </form>
       </div>
     </section>
 
@@ -284,7 +280,7 @@
     </div>
   </footer>
 
-  <script src="/common.js?v=12" defer></script>
-  <script src="/home.js?v=12" defer></script>
+  <script src="/common.js?v=13" defer></script>
+  <script src="/home.js?v=13" defer></script>
 </body>
 </html>
