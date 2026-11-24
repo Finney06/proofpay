@@ -97,3 +97,16 @@
   loadRates();
   setInterval(loadRates, 60000);
 })();
+
+/* When the escrow contract is live, say so: then not even ProofPay can move a deposit. */
+(async () => {
+  try {
+    const res = await fetch("/api/health");
+    const health = await res.json();
+    const el = document.getElementById("faq-payin");
+    if (!el || !health.escrow) return;
+    el.innerHTML = `<strong>Or pay it in.</strong> It's locked in the <a href="https://celoscan.io/address/${health.escrow}" target="_blank" rel="noopener">ProofPay escrow contract</a>, which has no owner. Only your wallet can release it to your freelancer or refund it to yourself. Not even ProofPay can move it.`;
+  } catch {
+    // Keep the default answer.
+  }
+})();

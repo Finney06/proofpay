@@ -825,3 +825,6 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.7); }
 .token-tip summary { cursor: pointer; color: var(--ink-2); font-weight: 600; }
 .token-tip p { margin: 8px 0 0; }
 .token-tip .mono { overflow-wrap: anywhere; color: var(--ink); }
+
+.faq details p + p { margin-top: -8px; }
+.faq details p strong { color: var(--ink-2); font-weight: 600; }
