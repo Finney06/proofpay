@@ -9,7 +9,20 @@ export type TaskStatus =
   | "SUBMITTED"
   | "VETTED"
   | "PAID"
-  | "REJECTED";
+  | "REJECTED"
+  | "REFUNDED";
+
+/** The client's own USD₮, sent to ProofPay to hold until they approve or reject. */
+export interface TaskFunding {
+  status: "funded" | "refunded";
+  funder: string;
+  txHash: string;
+  amountAtomic: string;
+  fundedAt: string;
+  attributionVerified: boolean;
+  refundTxHash?: string;
+  refundedAt?: string;
+}
 
 export interface PayoutTask {
   id: string;
@@ -30,6 +43,7 @@ export interface PayoutTask {
     submittedAt: string;
   };
   aiReview?: DeliverableReview;
+  funding?: TaskFunding;
   approval?: {
     approvedBy: string;
     approvedAt: string;
@@ -72,6 +86,9 @@ export interface TrustReceipt {
   reviewEngine?: string;
   payout: ExecutedTextilePayout;
   x402TxHash?: string | null;
+  /** Set when the client funded the payout from their own wallet. */
+  fundedBy?: string | null;
+  fundingTxHash?: string | null;
   attributionTag: string;
 }
 

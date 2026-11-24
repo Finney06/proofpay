@@ -145,6 +145,7 @@ window.PP = (() => {
         ? { key: "paid", label: "Paid" }
         : { key: "preview", label: "Approved, preview" };
     }
+    if (task.status === "REFUNDED") return { key: "preview", label: "Refunded" };
     if (task.status === "VETTED") {
       return task.aiReview && task.aiReview.verdict === "PASS"
         ? { key: "approve", label: "Ready to approve" }

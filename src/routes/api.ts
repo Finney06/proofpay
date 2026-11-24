@@ -1,17 +1,31 @@
 import crypto from "node:crypto";
 import { Router } from "express";
-import { isAddress, type Address } from "viem";
+import {
+  encodeFunctionData,
+  erc20Abi,
+  isAddress,
+  parseEventLogs,
+  parseUnits,
+  verifyMessage,
+  type Address,
+  type Hash,
+  type Hex,
+} from "viem";
+import { toDataSuffix } from "@celo/attribution-tags";
 import {
   ATTRIBUTION_TAG,
   CELO_CHAIN_ID,
   CONTRACTS,
   DEFAULT_PAYOUT_CORRIDOR,
+  FUNDING_TOKENS,
   PAYOUT_CORRIDORS,
 } from "../config/celo.js";
 import {
   getAgentAddress,
   getAgentBalancesSnapshot,
   isLiveExecutionConfigured,
+  publicClient,
+  transferLocalStablecoin,
 } from "../services/celoWallet.js";
 import {
   executeTextileSwapAndPayout,
@@ -281,23 +295,193 @@ function isOperator(provided: string | undefined): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-apiRouter.post("/tasks/:id/approve", async (req, res) => {
-  try {
-    if (isLiveExecutionConfigured() && !isOperator(req.get("x-operator-key"))) {
-      res.status(401).json({
-        error: "OPERATOR_KEY_REQUIRED",
-        message: process.env.OPERATOR_KEY
-          ? "On mainnet, only the ProofPay operator can release payouts from the agent wallet."
-          : "Approvals are disabled: set OPERATOR_KEY on the server to release mainnet payouts.",
-      });
-      return;
-    }
+/* ---------- Client funding: the client's own USD₮, held until they decide ---------- */
 
+const approveMessage = (taskId: string) => `Approve ProofPay payout ${taskId}`;
+const refundMessage = (taskId: string) => `Refund ProofPay payout ${taskId}`;
+
+function budgetAtomic(budgetUsd: number): bigint {
+  return parseUnits(budgetUsd.toFixed(FUNDING_TOKENS.USDT.decimals), FUNDING_TOKENS.USDT.decimals);
+}
+
+async function signedByFunder(funder: string, message: string, signature: unknown): Promise<boolean> {
+  if (typeof signature !== "string" || !/^0x[0-9a-fA-F]+$/.test(signature)) return false;
+  try {
+    return await verifyMessage({ address: funder as Address, message, signature: signature as Hex });
+  } catch {
+    return false;
+  }
+}
+
+/** What the client's wallet should send: a USD₮ transfer to the agent wallet, with ProofPay's tag. */
+apiRouter.get("/tasks/:id/funding", (req, res) => {
+  const task = getTask(req.params.id);
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+  const agent = getAgentAddress();
+  if (!agent || !isLiveExecutionConfigured()) {
+    res.status(409).json({
+      error: "FUNDING_UNAVAILABLE",
+      message: "This server is in preview mode, so it can't hold real funds yet.",
+    });
+    return;
+  }
+  if (task.funding?.status === "funded") {
+    res.status(409).json({ error: "ALREADY_FUNDED", message: "This payout is already funded." });
+    return;
+  }
+  const amount = budgetAtomic(task.budgetUsd);
+  const call = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [agent, amount] });
+  const suffix = toDataSuffix([ATTRIBUTION_TAG]).replace(/^0x/, "");
+  res.json({
+    chainId: CELO_CHAIN_ID,
+    token: FUNDING_TOKENS.USDT.address,
+    tokenSymbol: FUNDING_TOKENS.USDT.symbol,
+    to: agent,
+    amountAtomic: amount.toString(),
+    amountUsd: task.budgetUsd,
+    data: `${call}${suffix}`,
+    approveMessage: approveMessage(task.id),
+    refundMessage: refundMessage(task.id),
+  });
+});
+
+/** Confirms the client's funding transaction on Celo and marks the payout funded. */
+apiRouter.post("/tasks/:id/fund", async (req, res) => {
+  try {
     const task = getTask(req.params.id);
     if (!task) {
       res.status(404).json({ error: "Task not found" });
       return;
     }
+    if (task.funding?.status === "funded") {
+      res.json({ task });
+      return;
+    }
+    const agent = getAgentAddress();
+    const { txHash } = req.body as { txHash?: string };
+    if (!agent || !txHash || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+      res.status(400).json({ error: "A valid funding transaction hash is required." });
+      return;
+    }
+    if (listTasks().some((t) => t.funding?.txHash.toLowerCase() === txHash.toLowerCase())) {
+      res.status(409).json({ error: "That transaction already funded another payout." });
+      return;
+    }
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hash, timeout: 90_000 });
+    if (receipt.status !== "success") {
+      res.status(400).json({ error: "The funding transaction failed on Celo." });
+      return;
+    }
+    const transfers = parseEventLogs({ abi: erc20Abi, logs: receipt.logs, eventName: "Transfer" }).filter(
+      (log) =>
+        log.address.toLowerCase() === FUNDING_TOKENS.USDT.address.toLowerCase() &&
+        log.args.to.toLowerCase() === agent.toLowerCase()
+    );
+    const paid = transfers.reduce((sum, log) => sum + log.args.value, 0n);
+    const needed = budgetAtomic(task.budgetUsd);
+    if (paid < needed) {
+      res.status(400).json({
+        error: `That transaction sent ${paid} of the ${needed} USD₮ units this payout needs.`,
+      });
+      return;
+    }
+
+    const tx = await publicClient.getTransaction({ hash: txHash as Hash });
+    const tag = await verifyAttributedTxSafe(txHash as Hash);
+    const updated = updateTask(task.id, (current) => ({
+      ...current,
+      funding: {
+        status: "funded",
+        funder: tx.from,
+        txHash,
+        amountAtomic: paid.toString(),
+        fundedAt: new Date().toISOString(),
+        attributionVerified: tag,
+      },
+    }));
+    res.json({ task: updated });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Couldn't confirm the funding." });
+  }
+});
+
+/** Sends the client's USD₮ back. Only the wallet that funded it can ask. */
+apiRouter.post("/tasks/:id/refund", async (req, res) => {
+  try {
+    const task = getTask(req.params.id);
+    if (!task || task.funding?.status !== "funded") {
+      res.status(400).json({ error: "There's no held payment to refund on this payout." });
+      return;
+    }
+    if (task.status === "PAID") {
+      res.status(409).json({ error: "This payout was already paid to the freelancer." });
+      return;
+    }
+    const ok = await signedByFunder(task.funding.funder, refundMessage(task.id), (req.body || {}).signature);
+    if (!ok) {
+      res.status(401).json({ error: "Only the wallet that funded this payout can refund it." });
+      return;
+    }
+    const refund = await transferLocalStablecoin({
+      tokenAddress: FUNDING_TOKENS.USDT.address,
+      recipient: task.funding.funder as Address,
+      amount: BigInt(task.funding.amountAtomic),
+    });
+    const updated = updateTask(task.id, (current) => ({
+      ...current,
+      status: "REFUNDED",
+      funding: { ...current.funding!, status: "refunded", refundTxHash: refund.hash, refundedAt: new Date().toISOString() },
+    }));
+    res.json({ task: updated });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Refund failed" });
+  }
+});
+
+async function verifyAttributedTxSafe(hash: Hash): Promise<boolean> {
+  try {
+    const { verifyTx } = await import("@celo/attribution-tags");
+    const result = await verifyTx({ client: publicClient, hash });
+    return result?.codes.includes(ATTRIBUTION_TAG) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+apiRouter.post("/tasks/:id/approve", async (req, res) => {
+  try {
+    const task = getTask(req.params.id);
+    if (!task) {
+      res.status(404).json({ error: "Task not found" });
+      return;
+    }
+
+    // A client-funded payout is released by the wallet that funded it.
+    // Anything else spends the agent wallet's own USD₮, so only the operator may release it.
+    const funded = task.funding?.status === "funded";
+    if (funded) {
+      const ok = await signedByFunder(task.funding!.funder, approveMessage(task.id), (req.body || {}).signature);
+      if (!ok) {
+        res.status(401).json({
+          error: "FUNDER_SIGNATURE_REQUIRED",
+          message: "Only the wallet that funded this payout can approve it.",
+        });
+        return;
+      }
+    } else if (isLiveExecutionConfigured() && !isOperator(req.get("x-operator-key"))) {
+      res.status(401).json({
+        error: "OPERATOR_KEY_REQUIRED",
+        message: process.env.OPERATOR_KEY
+          ? "Fund this payout from your wallet first. Unfunded payouts can only be released by the ProofPay operator."
+          : "Approvals are disabled: set OPERATOR_KEY on the server to release mainnet payouts.",
+      });
+      return;
+    }
+
     if (task.status === "PAID") {
       res.status(409).json({
         error: "Task already paid.",
@@ -314,8 +498,10 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
     }
 
     const approvedBy = task.businessName;
-    // Dashboard approvals are capped per client per day.
-    const capKey = `client:${task.businessName.trim().toLowerCase()}`;
+    // Approvals are capped per client per day (per funding wallet when the client funded it).
+    const capKey = funded
+      ? `client:${task.funding!.funder.toLowerCase()}`
+      : `client:${task.businessName.trim().toLowerCase()}`;
 
     const spentToday = getHumanSpentToday(capKey);
     const capCheck = evaluateSharedHumanCap({
@@ -369,6 +555,8 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
       reviewEngine: task.aiReview.engine,
       payout,
       x402TxHash: null,
+      fundedBy: funded ? task.funding!.funder : null,
+      fundingTxHash: funded ? task.funding!.txHash : null,
       attributionTag: ATTRIBUTION_TAG,
     });
 

@@ -262,6 +262,8 @@ function renderPayouts() {
     });
   });
   list.querySelectorAll("[data-approve]").forEach((btn) => btn.addEventListener("click", () => approve(btn.dataset.approve)));
+  list.querySelectorAll("[data-fund]").forEach((btn) => btn.addEventListener("click", () => fundPayout(btn.dataset.fund)));
+  list.querySelectorAll("[data-refund]").forEach((btn) => btn.addEventListener("click", () => refundPayout(btn.dataset.refund)));
   list.querySelectorAll("[data-copy]").forEach((btn) => btn.addEventListener("click", () => copyText(btn.dataset.copy, btn)));
 }
 
@@ -293,6 +295,7 @@ function renderDetail(task, receipt, status) {
 
   const steps = [
     step(true, task.createdAt, "Payout created", `${usd(task.budgetUsd)} USD₮, paid out in ${esc(task.corridorCode)}`),
+    ...(task.funding ? [step(true, task.funding.fundedAt, `Paid in by ${esc(shortAddr(task.funding.funder))}`, txLink(task.funding.txHash))] : []),
     sub
       ? step(true, sub.submittedAt, "Work handed in", `<a href="${esc(sub.deliverableUrl)}" target="_blank" rel="noopener">${esc(sub.deliverableUrl)}</a>`)
       : step(false, null, `Waiting for ${esc(task.freelancerName)} to hand in the work`, ""),
@@ -312,17 +315,33 @@ function renderDetail(task, receipt, status) {
   }
 
   let actions = "";
+  const busy = state.approving === task.id;
+  const funded = task.funding && task.funding.status === "funded";
+  const canFund = !funded && task.status !== "PAID" && task.status !== "REFUNDED" && state.health?.executionMode === "mainnet";
+  const fundBtn = canFund
+    ? `<button class="btn small" type="button" data-fund="${esc(task.id)}" ${busy ? "disabled" : ""}>${busy && state.busyLabel ? esc(state.busyLabel) : `Pay in ${usd(task.budgetUsd)} from your wallet`}</button>`
+    : "";
+  const refundBtn = funded && task.status !== "PAID"
+    ? `<button class="btn secondary small" type="button" data-refund="${esc(task.id)}" ${busy ? "disabled" : ""}>Reject and refund</button>`
+    : "";
+  const heldNote = funded ? `<span class="hint">${usd(task.budgetUsd)} is held. It goes to ${esc(task.freelancerName)} only when you approve.</span>` : "";
+
   if (status.key === "waiting") {
     actions = `
-      <button class="btn small" type="button" data-copy="${esc(freelancerLink(task))}">Copy freelancer link</button>
-      <a class="btn secondary small" href="/t/${esc(task.id)}" target="_blank" rel="noopener">Open their page</a>`;
-  } else if (status.key === "approve" || status.key === "flagged") {
-    const busy = state.approving === task.id;
-    const label = busy ? "Converting on Textile FX…" : `${status.key === "flagged" ? "Approve anyway, pay" : "Approve and pay"} ${usd(task.budgetUsd)}`;
-    actions = `
-      <button class="btn paid small" type="button" data-approve="${esc(task.id)}" ${busy ? "disabled" : ""}>${label}</button>
+      ${fundBtn}
+      <button class="btn ${canFund ? "secondary " : ""}small" type="button" data-copy="${esc(freelancerLink(task))}">Copy freelancer link</button>
       <a class="btn secondary small" href="/t/${esc(task.id)}" target="_blank" rel="noopener">Open their page</a>
-      <span class="hint">${status.key === "flagged" ? "Some checks failed. Open the work before you pay." : `${esc(task.freelancerName)} gets about ${esc(est)} ${esc(task.corridorCode)}.`}</span>`;
+      ${refundBtn}
+      ${heldNote || (canFund ? `<span class="hint">Paying in first shows your freelancer the money is ready.</span>` : "")}`;
+  } else if (status.key === "approve" || status.key === "flagged") {
+    const label = busy ? (state.busyLabel ? esc(state.busyLabel) : "Converting on Textile FX…") : `${status.key === "flagged" ? "Approve anyway, pay" : "Approve and pay"} ${usd(task.budgetUsd)}`;
+    actions = `
+      ${canFund ? fundBtn : `<button class="btn paid small" type="button" data-approve="${esc(task.id)}" ${busy ? "disabled" : ""}>${label}</button>`}
+      ${refundBtn}
+      <a class="btn secondary small" href="/t/${esc(task.id)}" target="_blank" rel="noopener">Open their page</a>
+      <span class="hint">${canFund ? "Pay in first, then approve." : status.key === "flagged" ? "Some checks failed. Open the work before you pay." : `${esc(task.freelancerName)} gets about ${esc(est)} ${esc(task.corridorCode)}.`}</span>`;
+  } else if (task.status === "REFUNDED") {
+    actions = `<span class="hint">Refunded to ${esc(shortAddr(task.funding?.funder || ""))}. ${task.funding?.refundTxHash ? txLink(task.funding.refundTxHash) : ""}</span>`;
   } else if (receipt) {
     actions = `
       <a class="btn small" href="/receipt/${esc(receipt.id)}">View receipt</a>
@@ -366,6 +385,101 @@ function saveOperatorKey(key) {
   }
 }
 
+/* ---------- Client wallet: MiniPay, Valora or any browser wallet ---------- */
+const CELO_CHAIN_HEX = "0xa4ec";
+
+function walletProvider() {
+  return window.ethereum || null;
+}
+
+async function connectWallet() {
+  const eth = walletProvider();
+  if (!eth) {
+    throw new Error("Open this page in MiniPay, Valora or MetaMask's browser to pay from your wallet.");
+  }
+  const [account] = await eth.request({ method: "eth_requestAccounts" });
+  const chainId = await eth.request({ method: "eth_chainId" });
+  if (String(chainId).toLowerCase() !== CELO_CHAIN_HEX) {
+    try {
+      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CELO_CHAIN_HEX }] });
+    } catch (err) {
+      if (err && err.code === 4902) {
+        await eth.request({
+          method: "wallet_addEthereumChain",
+          params: [{ chainId: CELO_CHAIN_HEX, chainName: "Celo", nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 }, rpcUrls: ["https://forno.celo.org"], blockExplorerUrls: ["https://celoscan.io"] }],
+        });
+      } else {
+        throw new Error("Switch your wallet to the Celo network and try again.");
+      }
+    }
+  }
+  return account;
+}
+
+function toHexUtf8(text) {
+  return "0x" + Array.from(new TextEncoder().encode(text)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function signAs(expected, message) {
+  const account = await connectWallet();
+  if (expected && account.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(`Switch to the wallet that paid in (${shortAddr(expected)}) and try again.`);
+  }
+  return walletProvider().request({ method: "personal_sign", params: [toHexUtf8(message), account] });
+}
+
+function walletError(err) {
+  if (err && err.code === 4001) return "You cancelled in your wallet. Nothing was sent.";
+  return (err && err.message) || "Something went wrong with your wallet.";
+}
+
+async function fundPayout(taskId) {
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task || state.approving) return;
+  state.approving = taskId;
+  state.busyLabel = "Waiting for your wallet…";
+  delete state.errors[taskId];
+  renderPayouts();
+  try {
+    const info = await api(`/api/tasks/${encodeURIComponent(taskId)}/funding`);
+    if (!info.ok) throw new Error(info.data.message || info.data.error || "Funding isn't available right now.");
+    const from = await connectWallet();
+    const txHash = await walletProvider().request({
+      method: "eth_sendTransaction",
+      params: [{ from, to: info.data.token, data: info.data.data, value: "0x0" }],
+    });
+    state.busyLabel = "Confirming on Celo…";
+    renderPayouts();
+    const res = await postJson(`/api/tasks/${encodeURIComponent(taskId)}/fund`, { txHash });
+    if (!res.ok) throw new Error(res.data.error || "Couldn't confirm the payment.");
+  } catch (err) {
+    state.errors[taskId] = walletError(err);
+  }
+  state.approving = null;
+  state.busyLabel = null;
+  await loadPayouts();
+}
+
+async function refundPayout(taskId) {
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task || state.approving || !task.funding) return;
+  if (!window.confirm(`Reject the work and send ${usd(task.budgetUsd)} USD₮ back to your wallet?`)) return;
+  state.approving = taskId;
+  state.busyLabel = "Refunding…";
+  delete state.errors[taskId];
+  renderPayouts();
+  try {
+    const signature = await signAs(task.funding.funder, `Refund ProofPay payout ${task.id}`);
+    const res = await postJson(`/api/tasks/${encodeURIComponent(taskId)}/refund`, { signature });
+    if (!res.ok) throw new Error(res.data.error || "Refund failed.");
+  } catch (err) {
+    state.errors[taskId] = walletError(err);
+  }
+  state.approving = null;
+  state.busyLabel = null;
+  await loadPayouts();
+}
+
 async function approve(taskId) {
   const task = state.tasks.find((t) => t.id === taskId);
   if (!task || state.approving) return;
@@ -382,15 +496,28 @@ async function approve(taskId) {
   delete state.errors[taskId];
   renderPayouts();
 
+  let body = "{}";
+  if (task.funding && task.funding.status === "funded") {
+    try {
+      const signature = await signAs(task.funding.funder, `Approve ProofPay payout ${task.id}`);
+      body = JSON.stringify({ signature });
+    } catch (err) {
+      state.approving = null;
+      state.errors[taskId] = walletError(err);
+      renderPayouts();
+      return;
+    }
+  }
+
   const send = () =>
     api(`/api/tasks/${encodeURIComponent(taskId)}/approve`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-operator-key": readOperatorKey() },
-      body: "{}",
+      body,
     });
 
   let { ok, status, data } = await send();
-  if (status === 401 && data.error === "OPERATOR_KEY_REQUIRED" && /operator can/.test(data.message || "")) {
+  if (status === 401 && data.error === "OPERATOR_KEY_REQUIRED" && /operator/.test(data.message || "") && !/Fund this payout/.test(data.message || "")) {
     const key = window.prompt("Operator key (needed to release mainnet payouts):");
     if (key) {
       saveOperatorKey(key.trim());
