@@ -1,0 +1,39 @@
+# Render Blueprint: creates the ProofPay web service.
+# Starts in preview mode (live rates, no money moves). Add AGENT_PRIVATE_KEY and
+# OPERATOR_KEY in the Render dashboard to pay out on Celo mainnet.
+services:
+  - type: web
+    name: proofpay
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.20.0
+      - key: CELO_RPC_URL
+        value: https://forno.celo.org
+      - key: CELO_ATTRIBUTION_TAG
+        value: celo_325d8d38061f
+      - key: X402_FACILITATOR_URL
+        value: https://api.x402.celo.org
+      - key: TEXTILE_API_URL
+        value: https://api.textilecredit.com
+      - key: PER_HUMAN_DAILY_CAP_USD
+        value: "25"
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: AGENT_PRIVATE_KEY
+        sync: false
+      - key: OPERATOR_KEY
+        sync: false
+      - key: ERC8004_AGENT_ID
+        sync: false
+      - key: X402_API_KEY
+        sync: false
+      - key: X402_PAY_TO
+        sync: false
+      - key: TEXTILE_API_KEY
+        sync: false
