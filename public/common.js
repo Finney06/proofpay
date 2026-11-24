@@ -160,7 +160,8 @@ window.PP = (() => {
 
   function reviewEngineLabel(engine) {
     if (engine === "deterministic-rubric") return "Rule-based checklist review";
-    if (engine) return `Model review (${engine})`;
+    if (engine && /gemini/i.test(engine)) return "AI review (Gemini)";
+    if (engine) return `AI review (${engine})`;
     return "Checklist review";
   }
 

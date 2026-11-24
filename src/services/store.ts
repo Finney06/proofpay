@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import pg from "pg";
 import type { DeliverableReview } from "./aiReviewer.js";
 import type { ExecutedTextilePayout } from "./textileFx.js";
 
@@ -106,30 +107,75 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function ensureStore(): StoreState {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(STORE_PATH)) {
-    const initial: StoreState = {
-      tasks: [],
-      receipts: [],
-      humanDailySpend: {},
-    };
-    fs.writeFileSync(STORE_PATH, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const raw = fs.readFileSync(STORE_PATH, "utf8");
-  return JSON.parse(raw) as StoreState;
+/*
+ * Storage: the whole state lives in memory and is written to a local JSON file.
+ * When DATABASE_URL is set (Render's free Postgres), every change is also saved
+ * to the database and the state is loaded from it at startup, so payouts and
+ * receipts survive redeploys on hosts whose disk is wiped.
+ */
+let memory: StoreState | null = null;
+let pool: pg.Pool | null = null;
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function emptyState(): StoreState {
+  return { tasks: [], receipts: [], humanDailySpend: {} };
 }
 
-function saveStore(state: StoreState): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+function writeFile(state: StoreState): void {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = `${STORE_PATH}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
   fs.renameSync(tmp, STORE_PATH);
+}
+
+function ensureStore(): StoreState {
+  if (memory) return memory;
+  memory = fs.existsSync(STORE_PATH)
+    ? (JSON.parse(fs.readFileSync(STORE_PATH, "utf8")) as StoreState)
+    : emptyState();
+  return memory;
+}
+
+function saveStore(state: StoreState): void {
+  memory = state;
+  writeFile(state);
+  if (pool) {
+    const snapshot = JSON.stringify(state);
+    const db = pool;
+    writeChain = writeChain
+      .then(() =>
+        db.query(
+          "INSERT INTO proofpay_state (id, data, updated_at) VALUES (1, $1::jsonb, now()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()",
+          [snapshot]
+        )
+      )
+      .catch((err) => console.error("Database save failed:", err instanceof Error ? err.message : err));
+  }
+}
+
+/** Connects to Postgres when DATABASE_URL is set and loads the saved state. Call once before serving. */
+export async function initStore(): Promise<"database" | "file"> {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    ensureStore();
+    return "file";
+  }
+  pool = new pg.Pool({
+    connectionString: url,
+    ssl: process.env.PGSSL === "require" ? { rejectUnauthorized: false } : undefined,
+    max: 3,
+  });
+  await pool.query(
+    "CREATE TABLE IF NOT EXISTS proofpay_state (id integer PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())"
+  );
+  const { rows } = await pool.query("SELECT data FROM proofpay_state WHERE id = 1");
+  if (rows.length) {
+    memory = rows[0].data as StoreState;
+    writeFile(memory);
+  } else {
+    saveStore(ensureStore());
+  }
+  return "database";
 }
 
 export function generateId(prefix: string): string {

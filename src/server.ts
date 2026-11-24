@@ -11,6 +11,7 @@ import {
   DEFAULT_PAYOUT_CORRIDOR,
 } from "./config/celo.js";
 import { getAgentAddress } from "./services/celoWallet.js";
+import { initStore } from "./services/store.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -105,6 +106,13 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`ProofPay listening on http://localhost:${PORT}`);
-});
+initStore()
+  .then((storage) => {
+    app.listen(PORT, () => {
+      console.log(`ProofPay listening on http://localhost:${PORT} (storage: ${storage})`);
+    });
+  })
+  .catch((err) => {
+    console.error("Could not open storage:", err);
+    process.exit(1);
+  });
