@@ -48,6 +48,7 @@ import {
   createTask,
   generateId,
   getHumanSpentToday,
+  getStorageMode,
   getReceipt,
   getTask,
   listReceipts,
@@ -68,6 +69,7 @@ apiRouter.get("/health", async (_req, res) => {
       chainId: CELO_CHAIN_ID,
       attributionTag: ATTRIBUTION_TAG,
       executionMode: isLiveExecutionConfigured() ? "mainnet" : "preview",
+      storage: getStorageMode(),
       agentWallet: balances.address,
       balances: {
         celo: balances.celo,

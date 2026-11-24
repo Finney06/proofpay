@@ -116,6 +116,11 @@ function todayKey(): string {
 let memory: StoreState | null = null;
 let pool: pg.Pool | null = null;
 let writeChain: Promise<unknown> = Promise.resolve();
+let storageMode: "database" | "file" = "file";
+
+export function getStorageMode(): "database" | "file" {
+  return storageMode;
+}
 
 function emptyState(): StoreState {
   return { tasks: [], receipts: [], humanDailySpend: {} };
@@ -175,6 +180,7 @@ export async function initStore(): Promise<"database" | "file"> {
   } else {
     saveStore(ensureStore());
   }
+  storageMode = "database";
   return "database";
 }
 
