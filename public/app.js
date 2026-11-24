@@ -297,7 +297,7 @@ function renderDetail(task, receipt, status) {
 
   const steps = [
     step(true, task.createdAt, "Payout created", `${usd(task.budgetUsd)} USD₮, paid out in ${esc(task.corridorCode)}`),
-    ...(task.funding ? [step(true, task.funding.fundedAt, `Paid in by ${esc(shortAddr(task.funding.funder))}`, txLink(task.funding.txHash))] : []),
+    ...(task.funding ? [step(true, task.funding.fundedAt, `${task.funding.method === "escrow" ? "Locked in escrow by" : "Paid in by"} ${esc(shortAddr(task.funding.funder))}`, txLink(task.funding.txHash))] : []),
     ...(task.altana
       ? [step(true, task.altana.grantedAt, `Spending limit set on ${esc(shortAddr(task.altana.wallet))}`, task.altana.grantTxHash ? txLink(task.altana.grantTxHash) : "Altana wallet")]
       : []),
@@ -335,8 +335,10 @@ function renderDetail(task, receipt, status) {
     : limited && !closed
     ? `<button class="btn secondary small" type="button" data-revoke="${esc(task.id)}" ${busy ? "disabled" : ""}>Reject and cancel the limit</button>`
     : "";
-  const heldNote = funded
-    ? `<span class="hint">${usd(task.budgetUsd)} is held. It goes to ${esc(task.freelancerName)} only when you approve.</span>`
+  const heldNote = funded && task.funding.method === "escrow"
+    ? `<span class="hint">${usd(task.budgetUsd)} is locked in the <a href="https://celoscan.io/address/${esc(task.funding.escrow)}" target="_blank" rel="noopener">ProofPay escrow contract</a>. Only your wallet can release it to ${esc(task.freelancerName)} or refund it. Not even ProofPay can move it.</span>`
+    : funded
+    ? `<span class="hint">${usd(task.budgetUsd)} is held in ProofPay's agent wallet until you decide. It goes to ${esc(task.freelancerName)} only when you approve.</span>`
     : limited
     ? `<span class="hint">Your ${usd(task.budgetUsd)} stays in your Altana wallet until you approve. The limit ends ${esc(dateTime(new Date(task.altana.session.expiry * 1000).toISOString()))}.</span>`
     : "";
@@ -450,6 +452,36 @@ function walletError(err) {
   return (err && err.message) || "Something went wrong with your wallet.";
 }
 
+/* The client's wallet sends escrow transactions itself; wait for each to land before the next. */
+function sendFromWallet(from, to, data) {
+  return walletProvider().request({ method: "eth_sendTransaction", params: [{ from, to, data, value: "0x0" }] });
+}
+
+async function waitForTx(hash) {
+  for (let i = 0; i < 60; i += 1) {
+    const r = await walletProvider().request({ method: "eth_getTransactionReceipt", params: [hash] });
+    if (r) {
+      if (r.status !== "0x1") throw new Error("That transaction failed on Celo. Nothing moved.");
+      return r;
+    }
+    await new Promise((done) => setTimeout(done, 2000));
+  }
+  throw new Error("Celo is taking long to confirm. Check your wallet, then refresh this page.");
+}
+
+async function walletAs(expected) {
+  const account = await connectWallet();
+  if (expected && account.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(`Switch to the wallet that paid in (${shortAddr(expected)}) and try again.`);
+  }
+  return account;
+}
+
+function setBusy(taskId, label) {
+  state.busyLabel = label;
+  renderPayouts();
+}
+
 async function fundPayout(taskId) {
   const task = state.tasks.find((t) => t.id === taskId);
   if (!task || state.approving) return;
@@ -461,10 +493,15 @@ async function fundPayout(taskId) {
     const info = await api(`/api/tasks/${encodeURIComponent(taskId)}/funding`);
     if (!info.ok) throw new Error(info.data.message || info.data.error || "Funding isn't available right now.");
     const from = await connectWallet();
-    const txHash = await walletProvider().request({
-      method: "eth_sendTransaction",
-      params: [{ from, to: info.data.token, data: info.data.data, value: "0x0" }],
-    });
+    let txHash;
+    if (info.data.mode === "escrow") {
+      setBusy(taskId, "Step 1 of 2: allow the escrow…");
+      await waitForTx(await sendFromWallet(from, info.data.token, info.data.approveData));
+      setBusy(taskId, "Step 2 of 2: lock the money…");
+      txHash = await sendFromWallet(from, info.data.escrow, info.data.fundData);
+    } else {
+      txHash = await sendFromWallet(from, info.data.token, info.data.data);
+    }
     state.busyLabel = "Confirming on Celo…";
     renderPayouts();
     const res = await postJson(`/api/tasks/${encodeURIComponent(taskId)}/fund`, { txHash });
@@ -486,8 +523,20 @@ async function refundPayout(taskId) {
   delete state.errors[taskId];
   renderPayouts();
   try {
-    const signature = await signAs(task.funding.funder, `Refund ProofPay payout ${task.id}`);
-    const res = await postJson(`/api/tasks/${encodeURIComponent(taskId)}/refund`, { signature });
+    let body;
+    if (task.funding.method === "escrow") {
+      // The client refunds themselves straight from the contract.
+      const info = await api(`/api/tasks/${encodeURIComponent(taskId)}/funding`);
+      if (!info.ok) throw new Error(info.data.message || info.data.error || "Couldn't load the escrow details.");
+      const from = await walletAs(task.funding.funder);
+      const txHash = await sendFromWallet(from, info.data.escrow, info.data.refundData);
+      setBusy(taskId, "Confirming on Celo…");
+      await waitForTx(txHash);
+      body = { txHash };
+    } else {
+      body = { signature: await signAs(task.funding.funder, `Refund ProofPay payout ${task.id}`) };
+    }
+    const res = await postJson(`/api/tasks/${encodeURIComponent(taskId)}/refund`, body);
     if (!res.ok) throw new Error(res.data.error || "Refund failed.");
   } catch (err) {
     state.errors[taskId] = walletError(err);
@@ -502,6 +551,7 @@ async function approve(taskId) {
   if (!task || state.approving) return;
 
   const limited = task.altana && task.altana.status === "granted";
+  const escrowed = task.funding && task.funding.status === "funded" && task.funding.method === "escrow";
   const grant = limited ? savedLimit(taskId) : null;
   if (limited && !grant) {
     state.errors[taskId] = "Approve from the browser where you set the spending limit.";
@@ -512,7 +562,7 @@ async function approve(taskId) {
   if (state.health?.executionMode === "mainnet") {
     const est = estimateLocal(task.corridorCode, task.budgetUsd);
     const ok = window.confirm(
-      `Pay ${usd(task.budgetUsd)} USD₮ to ${task.freelancerName}?\n\n${limited ? "ProofPay takes it from your Altana wallet, converts it" : "It converts"} to about ${est} ${task.corridorCode} on Textile FX and goes to ${task.freelancerWallet} on Celo. This can't be undone.`
+      `Pay ${usd(task.budgetUsd)} USD₮ to ${task.freelancerName}?\n\n${limited ? "ProofPay takes it from your Altana wallet, converts it" : escrowed ? "Your wallet releases it from the escrow, then it converts" : "It converts"} to about ${est} ${task.corridorCode} on Textile FX and goes to ${task.freelancerWallet} on Celo. This can't be undone.`
     );
     if (!ok) return;
   }
@@ -525,6 +575,31 @@ async function approve(taskId) {
   const headers = { "Content-Type": "application/json" };
   if (grant) {
     headers["x-owner-token"] = grant.ownerToken;
+  } else if (escrowed) {
+    try {
+      // A release that landed but whose payout failed is retried without releasing again.
+      let txHash = task.funding.releaseTxHash;
+      if (!txHash) {
+        // Check the payout can go ahead before any money leaves the escrow.
+        const check = await api(`/api/tasks/${encodeURIComponent(taskId)}/approve?check=1`, { method: "POST", headers, body: "{}" });
+        if (!check.ok) throw new Error(check.data.message || check.data.error || "This payout can't be approved yet.");
+        const info = await api(`/api/tasks/${encodeURIComponent(taskId)}/funding`);
+        if (!info.ok) throw new Error(info.data.message || info.data.error || "Couldn't load the escrow details.");
+        const from = await walletAs(task.funding.funder);
+        setBusy(taskId, "Release it in your wallet…");
+        txHash = await sendFromWallet(from, info.data.escrow, info.data.releaseData);
+        setBusy(taskId, "Confirming on Celo…");
+        await waitForTx(txHash);
+      }
+      setBusy(taskId, "Converting on Textile FX…");
+      body = JSON.stringify({ txHash });
+    } catch (err) {
+      state.approving = null;
+      state.busyLabel = null;
+      state.errors[taskId] = walletError(err);
+      renderPayouts();
+      return;
+    }
   } else if (task.funding && task.funding.status === "funded") {
     try {
       const signature = await signAs(task.funding.funder, `Approve ProofPay payout ${task.id}`);
@@ -554,6 +629,7 @@ async function approve(taskId) {
   }
 
   state.approving = null;
+  state.busyLabel = null;
   if (!ok) {
     if (status === 401) saveOperatorKey("");
     state.errors[taskId] = data.message || data.error || "Payout failed.";

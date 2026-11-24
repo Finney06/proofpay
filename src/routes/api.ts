@@ -4,8 +4,10 @@ import {
   encodeFunctionData,
   erc20Abi,
   isAddress,
+  keccak256,
   parseEventLogs,
   parseUnits,
+  toHex,
   verifyMessage,
   type Address,
   type Hash,
@@ -35,6 +37,7 @@ import {
 } from "../services/textileFx.js";
 import { vetDeliverable } from "../services/aiReviewer.js";
 import { checkSession, pullBudget, sealSessionKey } from "../services/altana.js";
+import { escrowAbi } from "../contracts/escrow.js";
 import {
   AUTO_PAY_MAX_USD,
   PER_HUMAN_DAILY_CAP_USD,
@@ -72,6 +75,7 @@ apiRouter.get("/health", async (_req, res) => {
       attributionTag: ATTRIBUTION_TAG,
       executionMode: isLiveExecutionConfigured() ? "mainnet" : "preview",
       storage: getStorageMode(),
+      escrow: escrowAddress(),
       agentWallet: balances.address,
       balances: {
         celo: balances.celo,
@@ -88,8 +92,17 @@ apiRouter.get("/health", async (_req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({
-      error: err instanceof Error ? err.message : "Health check failed",
+    // Balances come from the Celo RPC; if it's down, still report how the server is set up.
+    res.json({
+      status: "degraded",
+      service: "ProofPay",
+      chainId: CELO_CHAIN_ID,
+      attributionTag: ATTRIBUTION_TAG,
+      executionMode: isLiveExecutionConfigured() ? "mainnet" : "preview",
+      storage: getStorageMode(),
+      escrow: escrowAddress(),
+      agentWallet: getAgentAddress(),
+      error: err instanceof Error ? err.message : "Balance lookup failed",
     });
   }
 });
@@ -326,6 +339,34 @@ function budgetAtomic(budgetUsd: number): bigint {
   return parseUnits(budgetUsd.toFixed(FUNDING_TOKENS.USDT.decimals), FUNDING_TOKENS.USDT.decimals);
 }
 
+/* ---------- Escrow contract: the client's USD₮ is held by ProofPayEscrow, not by ProofPay ---------- */
+
+function escrowAddress(): Address | null {
+  const a = process.env.ESCROW_ADDRESS;
+  return a && isAddress(a) ? (a as Address) : null;
+}
+
+/** The escrow keys each deposit by the hash of the payout id. */
+function escrowId(taskId: string): Hex {
+  return keccak256(toHex(taskId));
+}
+
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+
+/** Finds an escrow event for this payout in a confirmed transaction. */
+async function escrowEvent<E extends "Funded" | "Released" | "Refunded">(txHash: string, taskId: string, eventName: E) {
+  const escrow = escrowAddress();
+  if (!escrow) throw new Error("No escrow contract is configured.");
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hash, timeout: 90_000 });
+  if (receipt.status !== "success") throw new Error("That transaction failed on Celo.");
+  const id = escrowId(taskId).toLowerCase();
+  const logs = parseEventLogs({ abi: escrowAbi, logs: receipt.logs, eventName }).filter(
+    (log) => log.address.toLowerCase() === escrow.toLowerCase() && (log.args as { id: Hex }).id.toLowerCase() === id
+  );
+  if (!logs.length) throw new Error(`That transaction has no ${eventName} event for this payout in the ProofPay escrow.`);
+  return logs[0];
+}
+
 async function signedByFunder(funder: string, message: string, signature: unknown): Promise<boolean> {
   if (typeof signature !== "string" || !/^0x[0-9a-fA-F]+$/.test(signature)) return false;
   try {
@@ -350,14 +391,38 @@ apiRouter.get("/tasks/:id/funding", (req, res) => {
     });
     return;
   }
+  const amount = budgetAtomic(task.budgetUsd);
+  const suffix = toDataSuffix([ATTRIBUTION_TAG]).replace(/^0x/, "");
+  const escrow = escrowAddress();
+  const heldInEscrow = task.funding?.status === "funded" && task.funding.method === "escrow";
+  if (escrow && (!task.funding || heldInEscrow)) {
+    // The client's wallet sends these itself: approve, fund, then later release or refund.
+    const id = escrowId(task.id);
+    const tagged = (data: Hex) => `${data}${suffix}`;
+    res.json({
+      mode: "escrow",
+      chainId: CELO_CHAIN_ID,
+      token: FUNDING_TOKENS.USDT.address,
+      tokenSymbol: FUNDING_TOKENS.USDT.symbol,
+      escrow,
+      escrowId: id,
+      amountAtomic: amount.toString(),
+      amountUsd: task.budgetUsd,
+      funder: task.funding?.funder || null,
+      approveData: tagged(encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [escrow, amount] })),
+      fundData: tagged(encodeFunctionData({ abi: escrowAbi, functionName: "fund", args: [id, amount] })),
+      releaseData: tagged(encodeFunctionData({ abi: escrowAbi, functionName: "release", args: [id] })),
+      refundData: tagged(encodeFunctionData({ abi: escrowAbi, functionName: "refund", args: [id] })),
+    });
+    return;
+  }
   if (task.funding?.status === "funded") {
     res.status(409).json({ error: "ALREADY_FUNDED", message: "This payout is already funded." });
     return;
   }
-  const amount = budgetAtomic(task.budgetUsd);
   const call = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [agent, amount] });
-  const suffix = toDataSuffix([ATTRIBUTION_TAG]).replace(/^0x/, "");
   res.json({
+    mode: "transfer",
     chainId: CELO_CHAIN_ID,
     token: FUNDING_TOKENS.USDT.address,
     tokenSymbol: FUNDING_TOKENS.USDT.symbol,
@@ -390,6 +455,32 @@ apiRouter.post("/tasks/:id/fund", async (req, res) => {
     }
     if (listTasks().some((t) => t.funding?.txHash.toLowerCase() === txHash.toLowerCase())) {
       res.status(409).json({ error: "That transaction already funded another payout." });
+      return;
+    }
+
+    const escrow = escrowAddress();
+    if (escrow) {
+      const log = await escrowEvent(txHash, task.id, "Funded");
+      const needed = budgetAtomic(task.budgetUsd);
+      if (log.args.amount < needed) {
+        res.status(400).json({ error: `The escrow holds ${log.args.amount} of the ${needed} USD₮ units this payout needs.` });
+        return;
+      }
+      const tag = await verifyAttributedTxSafe(txHash as Hash);
+      const updated = updateTask(task.id, (current) => ({
+        ...current,
+        funding: {
+          status: "funded",
+          method: "escrow",
+          escrow,
+          funder: log.args.funder,
+          txHash,
+          amountAtomic: log.args.amount.toString(),
+          fundedAt: new Date().toISOString(),
+          attributionVerified: tag,
+        },
+      }));
+      res.json({ task: publicTask(updated) });
       return;
     }
 
@@ -441,6 +532,22 @@ apiRouter.post("/tasks/:id/refund", async (req, res) => {
     }
     if (task.status === "PAID") {
       res.status(409).json({ error: "This payout was already paid to the freelancer." });
+      return;
+    }
+    if (task.funding.method === "escrow") {
+      // The client refunded themselves from the contract; record it.
+      const { txHash } = (req.body || {}) as { txHash?: string };
+      if (!txHash || !TX_HASH.test(txHash)) {
+        res.status(400).json({ error: "The refund transaction hash is required." });
+        return;
+      }
+      await escrowEvent(txHash, task.id, "Refunded");
+      const updated = updateTask(task.id, (current) => ({
+        ...current,
+        status: "REFUNDED",
+        funding: { ...current.funding!, status: "refunded", refundTxHash: txHash, refundedAt: new Date().toISOString() },
+      }));
+      res.json({ task: publicTask(updated) });
       return;
     }
     const ok = await signedByFunder(task.funding.funder, refundMessage(task.id), (req.body || {}).signature);
@@ -583,6 +690,13 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
         });
         return;
       }
+    } else if (funded && task.funding!.method === "escrow") {
+      // Approval is the client's own release transaction; it's checked below, after the payout checks.
+      const { txHash } = (req.body || {}) as { txHash?: string };
+      if (req.query.check !== "1" && (!txHash || !TX_HASH.test(txHash))) {
+        res.status(400).json({ error: "RELEASE_TX_REQUIRED", message: "Release the money from the escrow first." });
+        return;
+      }
     } else if (funded) {
       const ok = await signedByFunder(task.funding!.funder, approveMessage(task.id), (req.body || {}).signature);
       if (!ok) {
@@ -639,6 +753,32 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
         capCheck,
       });
       return;
+    }
+
+    if (req.query.check === "1") {
+      // Pre-flight from the client's browser before they release the escrow: nothing moves.
+      res.json({ ok: true });
+      return;
+    }
+
+    // Escrow: the client's release must have sent at least the budget to this agent.
+    if (funded && task.funding!.method === "escrow") {
+      const txHash = (req.body as { txHash: string }).txHash;
+      const log = await escrowEvent(txHash, task.id, "Released");
+      const agent = getAgentAddress();
+      if (!agent || log.args.agent.toLowerCase() !== agent.toLowerCase()) {
+        res.status(400).json({ error: "That release didn't go to this server's agent wallet." });
+        return;
+      }
+      if (log.args.funder.toLowerCase() !== task.funding!.funder.toLowerCase()) {
+        res.status(400).json({ error: "That release came from a different deposit." });
+        return;
+      }
+      if (log.args.amount < budgetAtomic(task.budgetUsd)) {
+        res.status(400).json({ error: "The released amount is below this payout's budget." });
+        return;
+      }
+      updateTask(task.id, (current) => ({ ...current, funding: { ...current.funding!, releaseTxHash: txHash } }));
     }
 
     // Altana: pull exactly the budget from the client's wallet with the session, then convert.
@@ -699,7 +839,7 @@ apiRouter.post("/tasks/:id/approve", async (req, res) => {
       x402TxHash: null,
       fundedBy: viaAltana ? task.altana!.wallet : funded ? task.funding!.funder : null,
       fundingTxHash: viaAltana ? altanaPullTx : funded ? task.funding!.txHash : null,
-      fundingMethod: viaAltana ? "altana" : funded ? "deposit" : null,
+      fundingMethod: viaAltana ? "altana" : funded ? (task.funding!.method === "escrow" ? "escrow" : "deposit") : null,
       attributionTag: ATTRIBUTION_TAG,
     });
 

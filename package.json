@@ -8,7 +8,11 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test:e2e": "tsx scripts/verify-e2e.ts",
-    "register:erc8004": "tsx scripts/register-erc8004.ts"
+    "register:erc8004": "tsx scripts/register-erc8004.ts",
+    "compile:contracts": "tsx scripts/compile-contracts.ts",
+    "test:escrow": "tsx scripts/test-escrow.ts",
+    "test:escrow-server": "tsx scripts/test-escrow-server.ts",
+    "deploy:escrow": "tsx scripts/deploy-escrow.ts"
   },
   "dependencies": {
     "@altananetwork/sdk": "^1.2.0",
@@ -21,10 +25,13 @@
     "viem": "^2.23.0"
   },
   "devDependencies": {
+    "@openzeppelin/contracts": "^5.4.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.23.1",
+    "ganache": "^7.9.2",
+    "solc": "^0.8.28",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

@@ -17,7 +17,7 @@ Nigerian freelancers paid by remote clients usually lose money and days between 
 
 ### Where the client's money comes from
 
-- **Pay in from a wallet.** The client sends the budget in USD₮ to the agent from MetaMask or any Celo browser wallet that holds USD₮ (`GET /api/tasks/:id/funding` builds the tagged transfer; `POST /api/tasks/:id/fund` checks the Transfer log). Approving needs that wallet's signature; rejecting sends the USD₮ back (`POST /api/tasks/:id/refund`).
+- **Pay into the escrow contract.** With `ESCROW_ADDRESS` set, the client's wallet approves USD₮ and calls `fund` on `ProofPayEscrow` (`contracts/ProofPayEscrow.sol`). The contract has no owner: only the wallet that paid in can `release` (to the agent, which converts and pays the freelancer) or `refund` (back to itself). ProofPay checks the payout can go ahead (`POST /api/tasks/:id/approve?check=1`) before the client releases, then verifies the `Released` event before converting. Without `ESCROW_ADDRESS`, the client sends USD₮ to the agent wallet instead, approves with a wallet signature, and refunds are sent back by the agent.
 - **Keep it in an Altana wallet.** The client opens a passkey Altana wallet and grants ProofPay a session key that can call only USD₮, with a spend cap of the budget plus $0.50 for fees, until an expiry they pick. Nothing moves until they approve; ProofPay then pulls exactly the budget with `execute` and converts it. Rejecting revokes the session onchain. See **Altana** below.
 - **Operator.** Unfunded payouts can only be released with `OPERATOR_KEY`.
 
@@ -57,6 +57,15 @@ npm run dev           # landing page at http://localhost:3000, the app at /app
 
 Without `AGENT_PRIVATE_KEY` the server runs in **preview mode**: rates and quotes are live from Textile FX, but approving a payout broadcasts nothing, and the UI and receipt say so. Set the key (a dedicated wallet holding USD₮ and a little CELO for gas) to pay out on mainnet. On mainnet, a payout the client paid into is approved with their wallet signature, and one under an Altana limit with their owner token; anything else needs `OPERATOR_KEY`, because it would spend the agent wallet's own USD₮.
 
+### Escrow contract
+
+```bash
+npm run compile:contracts     # solc 0.8.28 + OpenZeppelin SafeERC20 / ReentrancyGuard
+npm run test:escrow           # 11 contract checks on a local chain (ganache)
+npm run build && npm run test:escrow-server   # the real server against the local chain
+npm run deploy:escrow         # Celo mainnet, from the agent wallet; then set ESCROW_ADDRESS
+```
+
 ### Register the agent (ERC-8004)
 
 ```bash
@@ -77,6 +86,7 @@ The registration file is served at `/registration.json` and `/.well-known/agent.
 | x402 verify and settle | `src/services/x402Service.ts` |
 | Delivery review (Gemini or rule-based) and fingerprint | `src/services/aiReviewer.ts` |
 | Altana session checks, encrypted key, budget pull | `src/services/altana.ts` |
+| Escrow contract and its tests | `contracts/ProofPayEscrow.sol`, `scripts/test-escrow*.ts` |
 | Storage (Postgres via `DATABASE_URL`, else a JSON file) | `src/services/store.ts` |
 | API routes | `src/routes/api.ts` |
 | Landing page (`/`), app (`/app`), freelancer page (`/t/:id`), receipt (`/receipt/:id`) | `public/` |

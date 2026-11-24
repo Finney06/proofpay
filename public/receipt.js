@@ -58,7 +58,7 @@ async function init() {
   if (live) {
     if (r.fundingTxHash) {
       const who = window.PP.shortAddr(r.fundedBy || "");
-      onchain.push(row(r.fundingMethod === "altana" ? `Taken under the client's Altana limit from ${who}` : `Paid in by ${who}`, txLink(r.fundingTxHash)));
+      onchain.push(row(r.fundingMethod === "altana" ? `Taken under the client's Altana limit from ${who}` : r.fundingMethod === "escrow" ? `Locked in the ProofPay escrow by ${who}` : `Paid in by ${who}`, txLink(r.fundingTxHash)));
     }
     if (p.approvalTxHash) onchain.push(row("USD₮ approval", txLink(p.approvalTxHash)));
     onchain.push(row("Textile FX conversion", txLink(p.swapTxHash)));

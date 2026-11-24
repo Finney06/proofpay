@@ -39,6 +39,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # ProofPayEscrow address from `npm run deploy:escrow`; when set, client pay-ins are held by the contract.
+      - key: ESCROW_ADDRESS
+        sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
       # Free Postgres from neon.tech (paste its connection string in the Render dashboard).

@@ -31,6 +31,10 @@ export interface TaskAltana {
 /** The client's own USD₮, sent to ProofPay to hold until they approve or reject. */
 export interface TaskFunding {
   status: "funded" | "refunded";
+  /** "escrow": held by the ProofPayEscrow contract. "transfer" (or missing): sent to the agent wallet. */
+  method?: "escrow" | "transfer";
+  escrow?: string;
+  releaseTxHash?: string;
   funder: string;
   txHash: string;
   amountAtomic: string;
@@ -107,7 +111,7 @@ export interface TrustReceipt {
   fundedBy?: string | null;
   fundingTxHash?: string | null;
   /** How the money reached the agent: a deposit, or pulled under an Altana spending limit. */
-  fundingMethod?: "deposit" | "altana" | null;
+  fundingMethod?: "deposit" | "escrow" | "altana" | null;
   attributionTag: string;
 }
 
