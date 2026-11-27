@@ -29,8 +29,9 @@ services:
         sync: false
       - key: OPERATOR_KEY
         sync: false
+      # ProofPay ERC-8004 identity on Celo mainnet (registered 27 Nov 2026).
       - key: ERC8004_AGENT_ID
-        sync: false
+        value: "10159"
       - key: X402_API_KEY
         sync: false
       - key: X402_PAY_TO
@@ -41,7 +42,7 @@ services:
         sync: false
       # ProofPayEscrow address from `npm run deploy:escrow`; when set, client pay-ins are held by the contract.
       - key: ESCROW_ADDRESS
-        sync: false
+        value: "0x994e6dc08cf488d4e5f6cde9cbde29f9ce86cf20"
       - key: GEMINI_MODEL
         value: gemini-3.5-flash
       # Free Postgres from neon.tech (paste its connection string in the Render dashboard).

@@ -4,6 +4,7 @@
  * Run: npm run deploy:escrow   then set ESCROW_ADDRESS to the printed address (in .env and on Render).
  */
 import "dotenv/config";
+import { encodeDeployData } from "viem";
 import { CELO_EXPLORER_ADDRESS, CELO_EXPLORER_TX, FUNDING_TOKENS } from "../src/config/celo.js";
 import { escrowAbi, escrowBytecode } from "../src/contracts/escrow.js";
 import { agentWallet, getAgentAddress, publicClient, verifyAttributedTx } from "../src/services/celoWallet.js";
@@ -24,12 +25,15 @@ async function main() {
   console.log(`Token: ${FUNDING_TOKENS.USDT.address} (USD₮)`);
   console.log(`Agent: ${agent}`);
 
-  const hash = await agentWallet.deployContract({
+  // sendTransaction (not deployContract) so the attribution extension appends ProofPay's tag.
+  const hash = await agentWallet.sendTransaction({
     account: agentWallet.account!,
     chain: agentWallet.chain,
-    abi: escrowAbi,
-    bytecode: escrowBytecode,
-    args: [FUNDING_TOKENS.USDT.address, agent],
+    data: encodeDeployData({
+      abi: escrowAbi,
+      bytecode: escrowBytecode,
+      args: [FUNDING_TOKENS.USDT.address, agent],
+    }),
   });
   console.log(`Tx sent:  ${CELO_EXPLORER_TX}${hash}`);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
